@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SeeDash</title>
+<script>if(localStorage.getItem('seedash-theme')==='dark')document.documentElement.setAttribute('data-theme','dark');</script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f5f4ef;
+  --bg2: #eceae3;
+  --bg3: #ffffff;
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.15);
+  --text: #1a1a1a;
+  --text2: #666660;
+  --text3: #aaa9a0;
+  --green: #0f6e56;
+  --green-bg: #e1f5ee;
+  --green-text: #085041;
+  --amber-bg: #faeeda;
+  --amber-text: #854f0b;
+  --red-text: #a32d2d;
+  --blue-bg: #e6f1fb;
+  --blue-text: #185fa5;
+  --gray-bg: #ebebeb;
+  --gray-text: #666;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+[data-theme="dark"] {
+  --bg: #0f0f11;
+  --bg2: #17171a;
+  --bg3: #1e1e22;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #f0f0f2;
+  --text2: #9090a0;
+  --text3: #5a5a6a;
+  --green-bg: #0a2e22;
+  --green-text: #4ecfa0;
+  --amber-bg: #2a1f08;
+  --amber-text: #f0a830;
+  --red-text: #f07070;
+  --blue-bg: #0a1e30;
+  --blue-text: #60b0f0;
+  --gray-bg: #2a2a2e;
+  --gray-text: #9090a0;
+}
+body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; overflow-y: scroll; }
+.app { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+
+/* Topbar */
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.logo { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; color: var(--text); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.btn-theme { width: 28px; height: 28px; border-radius: 50%; border: 0.5px solid var(--border2); background: none; color: var(--text); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.12s; }
+.btn-theme:hover { background: var(--bg2); }
+
+/* Stats */
+.stats { display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 10px; margin-bottom: 1.5rem; }
+.stat { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; }
+.stat-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+.stat-val { font-size: 20px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.stat-val.danger { color: var(--red-text); }
+.stat-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 6px; margin-bottom: 1.25rem; }
+.tabs .tab-config { margin-left: auto; }
+.tab { font-size: 13px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); cursor: pointer; font-weight: 400; transition: all 0.12s; }
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--text); color: var(--bg3); border-color: var(--text); font-weight: 500; }
+
+/* Card */
+.card { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 1rem; }
+.card-filter { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; }
+.card-filter label { font-size: 12px; color: var(--text2); }
+.card-filter select, .card-filter input[type=number] { font-size: 12px; padding: 4px 8px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); }
+.card-filter .spacer { flex: 1; }
+.btn-sm { font-size: 12px; padding: 4px 12px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: none; color: var(--text); cursor: pointer; transition: background 0.12s; }
+.btn-sm:hover { background: var(--bg2); }
+.btn-primary { background: var(--text); color: var(--bg3); border-color: var(--text); }
+.btn-primary:hover { opacity: 0.85; }
+.btn-danger { color: var(--red-text); border-color: rgba(163,45,45,0.3); }
+.btn-danger:hover { background: #fcebeb; }
+.btn-del-x { font-size: 11px; padding: 3px 7px; border-radius: var(--radius); border: 0.5px solid rgba(163,45,45,0.25); background: none; color: var(--red-text); cursor: pointer; opacity: 0.55; transition: opacity 0.12s, background 0.12s; line-height: 1; }
+.btn-del-x:hover { opacity: 1; background: #fcebeb; }
+[data-theme="dark"] .btn-del-x:hover { background: rgba(163,45,45,0.2); }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 11px; font-weight: 500; color: var(--text2); padding: 8px 12px; border-bottom: 0.5px solid var(--border); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 0.5px solid var(--border); color: var(--text); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafaf7; }
+.td-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.td-size { font-size: 12px; color: var(--text2); white-space: nowrap; }
+
+/* Badges */
+.badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.badge-green { background: var(--green-bg); color: var(--green-text); }
+.badge-blue  { background: var(--blue-bg);  color: var(--blue-text); }
+.badge-amber { background: var(--amber-bg); color: var(--amber-text); }
+.badge-gray  { background: var(--gray-bg);  color: var(--gray-text); }
+
+/* Progress */
+.prog-wrap { display: flex; align-items: center; gap: 8px; }
+.prog-bar-bg { width: clamp(0px, 10vw, 80px); height: 4px; background: var(--bg2); border-radius: 2px; overflow: hidden; flex-shrink: 1; min-width: 0; }
+.prog-bar { height: 4px; border-radius: 2px; }
+.prog-val { font-size: 12px; font-weight: 500; white-space: nowrap; }
+
+/* Leecher / seeder numbers */
+.num-red   { font-size: 12px; font-weight: 500; color: var(--red-text); }
+.num-green { font-size: 12px; font-weight: 500; color: var(--green); }
+
+/* Toggle */
+.toggle { appearance: none; -webkit-appearance: none; width: 34px; height: 19px; border-radius: 10px; cursor: pointer; position: relative; flex-shrink: 0; border: none; transition: background 0.2s; background: #c8c7c0; }
+.toggle:checked { background: #1D9E75; }
+.toggle::before { content: ''; position: absolute; width: 15px; height: 15px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.toggle:checked::before { transform: translateX(15px); }
+
+/* Rules */
+.section-sep { font-size: 11px; font-weight: 500; color: var(--text3); padding: 7px 16px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 0.5px solid var(--border); background: var(--bg2); }
+.rule-row { display: grid; grid-template-columns: 1fr 60px 40px 34px; align-items: center; column-gap: 6px; padding: 11px 16px; border-bottom: 0.5px solid var(--border); }
+.rule-row:last-child { border-bottom: none; }
+.rule-meta { min-width: 0; }
+.rule-name { font-size: 13px; font-weight: 500; }
+.rule-desc { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.rule-input-wrap input { font-size: 13px; font-weight: 500; padding: 4px 8px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); width: 60px; text-align: right; }
+.rule-input-wrap input:focus { outline: none; background: var(--bg3); border-color: #888; }
+.rule-input-wrap input:disabled { opacity: 0.4; cursor: not-allowed; }
+.rule-unit { font-size: 12px; color: var(--text2); }
+.rule-actions { display: flex; align-items: center; }
+
+/* Footer actions */
+.card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 0.5px solid var(--border); }
+.saved-msg { font-size: 11px; color: var(--green); opacity: 0; transition: opacity 0.3s; }
+
+/* Cron help tooltip */
+.cron-help-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border2); font-size: 11px; color: var(--text2); cursor: default; user-select: none; flex-shrink: 0; }
+#cron-tooltip { display: none; position: fixed; width: 340px; background: var(--bg3); border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 12px; font-size: 12px; color: var(--text); line-height: 1.5; z-index: 1000; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+#cron-tooltip table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+#cron-tooltip th, #cron-tooltip td { padding: 4px 8px; text-align: center; border: 0.5px solid var(--border2); }
+#cron-tooltip th { font-size: 11px; font-weight: 600; background: var(--bg2); }
+#cron-tooltip .cron-range { font-size: 10px; color: var(--text3); font-weight: 400; }
+#cron-tooltip .cron-wild { color: var(--green); font-weight: 600; font-family: monospace; }
+#cron-tooltip .cron-examples { font-family: monospace; font-size: 11px; line-height: 1.8; }
+#cron-tooltip .cron-days { font-family: monospace; font-size: 11px; margin-top: 8px; color: var(--text2); }
+#cron-tooltip .cron-note { font-size: 10px; color: var(--text3); font-style: italic; margin-top: 3px; }
+
+/* Section hide/show */
+.section { display: none; }
+.section.active { display: block; }
+
+/* Grab footer */
+.grab-footer { display: flex; justify-content: flex-end; padding-top: 8px; }
+
+/* Checkbox */
+input[type=checkbox]:not(.toggle) { accent-color: #1D9E75; width: 14px; height: 14px; cursor: pointer; }
+
+/* Cleaner */
+.cleaner-row { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; }
+.cleaner-row:last-child { border-bottom: none; }
+.cleaner-meta { flex: 1; min-width: 160px; }
+.cleaner-cron-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cleaner-cron-wrap input[type=text] { font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); width: 160px; font-family: monospace; }
+.cleaner-cron-wrap input[type=text]:focus { outline: none; background: var(--bg3); border-color: #888; }
+.cleaner-cron-wrap select { font-size: 12px; padding: 4px 8px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg3); color: var(--text2); }
+.cleaner-info { padding: 10px 16px; font-size: 12px; color: var(--text2); display: flex; gap: 24px; flex-wrap: wrap; }
+.cleaner-info span { display: flex; align-items: center; gap: 5px; }
+.cleaner-info strong { color: var(--text); }
+
+/* Responsive */
+.tbl-wrap { overflow-x: auto; }
+.tbl-wrap table { width: 100%; }
+.tbl-wrap td, .tbl-wrap th { white-space: nowrap; }
+.tbl-wrap .col-nom { width: 99%; max-width: 0; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tbl-wrap .col-nom .td-name { max-width: 100%; }
+@media (max-width: 900px) {
+  .stats { grid-template-columns: repeat(3, minmax(0,1fr)); }
+}
+@media (max-width: 600px) {
+  .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .tabs { flex-wrap: wrap; }
+}
+@media (max-width: 800px) {
+  .prog-bar-bg { display: none; }
+  td, th { padding: 8px 6px; }
+}
+@media (max-width: 750px) {
+  .col-seeders, .cell-label { display: none; }
+}
+@media (max-width: 650px) {
+  .cell-seedtime { display: none; }
+}
+@media (max-width: 550px) {
+  .cell-dl, .cell-up { display: none; }
+}
+@media (max-width: 450px) {
+  .col-size { display: none; }
+}
+
+/* Login screen */
+.login-screen { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 9999; align-items: center; justify-content: center; }
+.login-screen.active { display: flex; }
+.login-box { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; width: 100%; max-width: 340px; }
+.login-title { font-size: 16px; font-weight: 500; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; }
+.login-field { margin-bottom: 1rem; }
+.login-field label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; }
+.login-field input { width: 100%; padding: 8px 12px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 14px; }
+.login-field input:focus { outline: none; border-color: #888; background: var(--bg3); }
+.login-btn { width: 100%; padding: 9px; border-radius: var(--radius); border: none; background: var(--text); color: var(--bg3); font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 0.5rem; }
+.login-btn:hover { opacity: 0.85; }
+.login-error { font-size: 12px; color: var(--red-text); margin-top: 0.75rem; min-height: 16px; text-align: center; }
+</style>
+</head>
+<body>
+<!-- Login screen -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-title"><div class="dot"></div> SeeDash</div>
+    <div class="login-field">
+      <label>Nom d'utilisateur</label>
+      <input type="text" id="login-username" autocomplete="username" placeholder="admin">
+    </div>
+    <div class="login-field">
+      <label>Mot de passe</label>
+      <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Se connecter</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+<div class="app">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="logo"><div class="dot"></div> SeeDash</div>
+    <div class="topbar-right">
+      <button class="btn-theme" id="btn-theme" onclick="toggleTheme()" title="Basculer le thème"></button>
+      <button class="btn-sm" id="btn-logout" onclick="doLogout()" style="display:none">Déconnexion</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Torrents actifs</div>
+      <div class="stat-val" id="s-active">—</div>
+      <div class="stat-sub">sur qBittorrent</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Ratio global</div>
+      <div class="stat-val" id="s-ratio">—</div>
+      <div class="stat-sub">objectif ≥ 1.0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Vitesse DL</div>
+      <div class="stat-val" id="s-dlspeed">—</div>
+      <div class="stat-sub">download</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Vitesse UP</div>
+      <div class="stat-val" id="s-upspeed">—</div>
+      <div class="stat-sub">upload</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Espace disque</div>
+      <div class="stat-val" id="s-disk">—</div>
+      <div class="stat-sub" id="s-disk-sub">libre</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Trafic réseau</div>
+      <div class="stat-val" id="s-traffic">—</div>
+      <div class="stat-sub" id="s-traffic-sub">reset —</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('top')">Top leechers</button>
+    <button class="tab" onclick="switchTab('actifs')">Torrents actifs</button>
+    <button class="tab tab-config" onclick="switchTab('regles')">Configuration</button>
+  </div>
+
+  <!-- Tab: Top leechers -->
+  <div id="sec-top" class="section active">
+    <div class="card">
+      <div class="card-filter">
+        <label>Catégorie</label>
+        <select id="f-cat">
+          <option value="">Toutes</option>
+          <optgroup label="Vidéo">
+            <option value="2030">Films</option>
+            <option value="5000">Séries TV</option>
+            <option value="2070">Documentaires</option>
+            <option value="2060">Animé (film)</option>
+            <option value="5070">Animé (série)</option>
+            <option value="5060">Sport</option>
+            <option value="5080">Émissions TV</option>
+            <option value="2090">Concerts</option>
+            <option value="2080">Spectacles</option>
+            <option value="2050">Vidéo-clips</option>
+          </optgroup>
+          <optgroup label="Audio">
+            <option value="3010">Musique</option>
+            <option value="3030">Audiobooks</option>
+          </optgroup>
+          <optgroup label="Livres">
+            <option value="7020">Livres</option>
+            <option value="7030">BD / Comics / Manga</option>
+            <option value="7010">Presse</option>
+          </optgroup>
+          <optgroup label="Apps & Jeux">
+            <option value="4000">PC / Apps</option>
+            <option value="1000">Consoles</option>
+            <option value="4050">Jeux PC</option>
+          </optgroup>
+          <optgroup label="Autre">
+            <option value="6000">XXX</option>
+            <option value="8010">Impression 3D</option>
+          </optgroup>
+        </select>
+        <label>Leechers min.</label>
+        <input type="number" id="f-leech" value="10" min="0" style="width:60px">
+        <label>Top</label>
+        <select id="f-top"><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option></select>
+        <div class="spacer"></div>
+        <button class="btn-sm" onclick="loadTop()">Actualiser</button>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr>
+          <th></th>
+          <th class="col-nom">Nom</th>
+          <th class="col-size">Taille</th>
+          <th>Leechers</th>
+          <th class="col-seeders">Seeders</th>
+          <th>Action</th>
+        </tr></thead>
+        <tbody id="top-body"><tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text3)">Chargement...</td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="grab-footer">
+      <button class="btn-sm btn-primary" onclick="grabSelected()">Grabber la sélection</button>
+    </div>
+  </div>
+
+  <!-- Tab: Torrents actifs -->
+  <div id="sec-actifs" class="section">
+    <div class="card">
+      <div class="tbl-wrap"><table>
+        <thead><tr>
+          <th></th>
+          <th class="col-nom">Nom</th>
+          <th class="col-size">Taille</th>
+          <th>Ratio</th>
+          <th class="cell-seedtime">Age</th>
+          <th class="cell-dl">DL</th>
+          <th class="cell-up">UP</th>
+          <th class="cell-label">Statut</th>
+          <th>Action</th>
+        </tr></thead>
+        <tbody id="actifs-body"><tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text3)">Chargement...</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- Tab: Règles -->
+  <div id="sec-regles" class="section">
+    <!-- Actualisation automatique -->
+    <div class="card">
+      <div class="section-sep">Actualisation</div>
+      <div class="rule-row">
+        <div class="rule-meta">
+          <div class="rule-name">Actualisation automatique</div>
+          <div class="rule-desc">Intervalle de rafraîchissement du top leechers</div>
+        </div>
+        <div class="rule-input-wrap">
+          <input type="number" id="autorefresh-interval" value="15" min="1" onchange="applyAutoRefresh()">
+        </div>
+        <span class="rule-unit">min</span>
+        <div class="rule-actions">
+          <input type="checkbox" class="toggle" id="autorefresh-enabled" onchange="applyAutoRefresh()">
+        </div>
+      </div>
+      <div style="padding:8px 16px;font-size:12px;color:var(--text2);">
+        Dernière actualisation : <strong id="autorefresh-last">—</strong>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-sep">Conditions de suppression</div>
+      <div id="rules-cond"></div>
+      <div class="section-sep">Limites de grab</div>
+      <div id="rules-limit"></div>
+    </div>
+
+    <!-- Nettoyage automatique -->
+    <div class="card">
+      <div class="section-sep">Nettoyage automatique</div>
+
+      <!-- Toggle activer/désactiver -->
+      <div class="cleaner-row">
+        <div class="cleaner-meta">
+          <div class="rule-name">Activer le nettoyage automatique</div>
+          <div class="rule-desc">Supprime les torrents ayant atteint les règles ratio/seed selon le planning cron</div>
+        </div>
+        <input type="checkbox" class="toggle" id="cleaner-enabled">
+      </div>
+
+      <!-- Expression cron + présets -->
+      <div class="cleaner-row">
+        <div class="cleaner-meta">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="rule-name">Planning (expression cron)</span>
+            <span class="cron-help-icon" id="cron-help-icon">?</span>
+          </div>
+          <div class="rule-desc">Fréquence d'exécution du nettoyage automatique</div>
+        </div>
+        <div class="cleaner-cron-wrap">
+          <input type="text" id="cleaner-cron" value="0 * * * *" placeholder="0 * * * *">
+          <select onchange="applyCronPreset(this.value)">
+            <option value="">— Présets —</option>
+            <option value="0 * * * *">Toutes les heures</option>
+            <option value="0 */6 * * *">Toutes les 6h</option>
+            <option value="0 3 * * *">1× par jour (3h)</option>
+            <option value="0 3 * * 0">1× par semaine (dim. 3h)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Infos + action -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;">
+        <div style="display:flex;align-items:center;gap:16px;font-size:13px;color:var(--text2);">
+          <span>Dernière exécution : <strong id="cleaner-last-run">—</strong></span>
+          <span>Torrents supprimés : <strong id="cleaner-last-count">—</strong></span>
+          <span id="cleaner-status-badge"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="saved-msg" id="cleaner-run-msg">Nettoyage lancé ✓</span>
+          <button class="btn-sm" onclick="runCleanerNow()" id="cleaner-run-btn">Lancer maintenant</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:12px;padding-right:1rem;">
+      <span class="saved-msg" id="rules-saved">Sauvegardé ✓</span>
+      <button class="btn-sm" onclick="resetRules()">Réinitialiser</button>
+      <button class="btn-sm btn-primary" onclick="saveAll()">Sauvegarder</button>
+    </div>
+
+    <!-- Changer le mot de passe -->
+    <div class="card" style="margin-top:1rem;">
+      <div class="section-sep">Changer le mot de passe</div>
+      <div class="cleaner-row">
+        <div class="cleaner-meta" style="width:100%;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end;">
+            <div>
+              <div class="rule-desc" style="margin-bottom:4px;">Mot de passe actuel</div>
+              <input type="password" id="pwd-current" class="rule-input-wrap" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;" placeholder="••••••••">
+            </div>
+            <div>
+              <div class="rule-desc" style="margin-bottom:4px;">Nouveau mot de passe</div>
+              <input type="password" id="pwd-new" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;" placeholder="Min. 8 caractères">
+            </div>
+            <div>
+              <div class="rule-desc" style="margin-bottom:4px;">Confirmer</div>
+              <input type="password" id="pwd-confirm" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;" placeholder="••••••••">
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+            <span id="pwd-msg" style="font-size:12px;color:var(--green);opacity:0;transition:opacity 0.3s;"></span>
+            <button class="btn-sm btn-primary" onclick="changePassword()">Changer le mot de passe</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Tooltip cron global (position:fixed via JS) -->
+<div id="cron-tooltip">
+  <table>
+    <thead><tr>
+      <th>minute<div class="cron-range">(0-59)</div></th>
+      <th>heure<div class="cron-range">(0-23)</div></th>
+      <th>jour/mois<div class="cron-range">(1-31)</div></th>
+      <th>mois<div class="cron-range">(1-12)</div></th>
+      <th>jour/sem.<div class="cron-range">(0-6)</div></th>
+    </tr></thead>
+    <tbody><tr>
+      <td class="cron-wild">*</td>
+      <td class="cron-wild">*</td>
+      <td class="cron-wild">*</td>
+      <td class="cron-wild">*</td>
+      <td class="cron-wild">*</td>
+    </tr></tbody>
+  </table>
+  <div class="cron-examples">0 * * * *&nbsp;&nbsp;&nbsp;&nbsp;→ toutes les heures<br>0 */6 * * *&nbsp;&nbsp;→ toutes les 6 heures<br>0 2 * * *&nbsp;&nbsp;&nbsp;&nbsp;→ tous les jours à 2h<br>0 2 * * 1&nbsp;&nbsp;&nbsp;&nbsp;→ tous les lundis à 2h<br>* = n'importe quelle valeur</div>
+  <div class="cron-days">0=Dim&nbsp;&nbsp;1=Lun&nbsp;&nbsp;2=Mar&nbsp;&nbsp;3=Mer&nbsp;&nbsp;4=Jeu&nbsp;&nbsp;5=Ven&nbsp;&nbsp;6=Sam</div>
+  <div class="cron-note">7 est aussi accepté pour dimanche</div>
+</div>
+
+<script>
+const BASE = '/seedash';
+
+// ── Auth ──────────────────────────────────────────────────
+let authToken = localStorage.getItem('seedash-token') || '';
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` };
+}
+
+function showLogin(msg) {
+  document.getElementById('login-screen').classList.add('active');
+  document.getElementById('btn-logout').style.display = 'none';
+  if (msg) { document.getElementById('login-error').textContent = msg; }
+}
+
+function hideLogin() {
+  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('btn-logout').style.display = '';
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  document.getElementById('login-error').textContent = '';
+  try {
+    const r = await fetch(BASE+'/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const d = await r.json();
+    if (!r.ok) { document.getElementById('login-error').textContent = d.error || 'Erreur'; return; }
+    authToken = d.token;
+    localStorage.setItem('seedash-token', authToken);
+    hideLogin();
+    loadStats(); loadDiskStats(); loadTop(); loadAutoRefreshConfig();
+  } catch(e) {
+    document.getElementById('login-error').textContent = 'Erreur réseau';
+  }
+}
+
+function doLogout() {
+  authToken = '';
+  localStorage.removeItem('seedash-token');
+  showLogin();
+}
+
+async function checkAuth() {
+  if (!authToken) { showLogin(); return; }
+  try {
+    const r = await fetch(BASE+'/api/stats', { headers: { Authorization: `Bearer ${authToken}` } });
+    if (r.status === 401) { showLogin(); return; }
+    hideLogin();
+  } catch(e) {
+    showLogin('Erreur réseau — réessayez');
+  }
+}
+
+let selectedGrab = new Set();
+let topItems = [];
+const torrentDataMap = new Map();
+let rules = [];
+let rulesOrig = [];
+let actifsInterval = null;
+let autoRefreshInterval = null;
+let autoRefreshLastTime = null;
+
+function he(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Liste fixe ordonnée — toujours toutes affichées
+const RULE_DEFS = [
+  { group:'cond',  key:'ratio_min',           name:'Ratio minimum',           desc:'Supprimer si ratio ≥ seuil — min C411 : 1.0',      unit:'',      step:0.1, min:0, defVal:1.0,  defOn:true  },
+  { group:'cond',  key:'seedtime_min_hours',   name:'Seedtime minimum',        desc:'Durée minimale avant suppression — min C411 : 48h', unit:'h',     step:1,   min:0, defVal:48,   defOn:true  },
+  { group:'cond',  key:'ratio_max',            name:'Ratio maximum',           desc:'Supprimer quand ratio dépasse ce seuil',            unit:'',      step:0.1, min:0, defVal:5.0,  defOn:false },
+  { group:'cond',  key:'seedtime_max_hours',   name:'Seedtime maximum',        desc:'Supprimer après N heures de seed maximum',          unit:'h',     step:1,   min:0, defVal:336,  defOn:false },
+  { group:'limit', key:'grab_limit_per_day',   name:'Grab automatique / jour', desc:'Nombre max de torrents grabbés par jour',           unit:'/jour', step:1,   min:1, defVal:20,   defOn:true  },
+  { group:'limit', key:'size_max_gb',          name:'Taille max par torrent',  desc:'Ignorer les torrents plus lourds',                  unit:'GB',    step:1,   min:1, defVal:100,  defOn:true  },
+  { group:'limit', key:'active_max',           name:'Max torrents simultanés', desc:"File d'attente si limite atteinte",                 unit:'',      step:1,   min:1, defVal:15,   defOn:false },
+];
+
+// ── Utilitaires ──────────────────────────────────────────
+function fmtBytes(b) {
+  if (!b) return '—';
+  if (b >= 1e12) return (b/1e12).toFixed(1)+' TB';
+  if (b >= 1e9)  return (b/1e9).toFixed(1)+' GB';
+  if (b >= 1e6)  return (b/1e6).toFixed(0)+' MB';
+  return (b/1e3).toFixed(0)+' KB';
+}
+function fmtSpeed(bps) {
+  if (!bps || bps < 1024) return '—';
+  if (bps >= 1048576) return (bps/1048576).toFixed(1)+' MB/s';
+  return (bps/1024).toFixed(0)+' KB/s';
+}
+function fmtSecs(s) {
+  if (!s) return '0h';
+  const h = Math.floor(s/3600);
+  if (h >= 24) return Math.floor(h/24)+'j '+( h%24)+'h';
+  return h+'h';
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'});
+}
+function showMsg(id) {
+  const el = document.getElementById(id);
+  el.style.opacity=1; setTimeout(()=>el.style.opacity=0, 2500);
+}
+
+// ── Tabs ─────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i)=> t.classList.toggle('active', ['top','actifs','regles'][i]===name));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+name).classList.add('active');
+  clearInterval(actifsInterval); actifsInterval = null;
+  if (name==='top')    loadTop();
+  if (name==='actifs') { loadActifs(); actifsInterval = setInterval(loadActifs, 5000); }
+  if (name==='regles') { loadRules(); loadCleanerStatus(); loadAutoRefreshConfig(); }
+}
+
+// ── Stats ─────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const r = await fetch(BASE+'/api/stats', { headers: { Authorization: `Bearer ${authToken}` } });
+    if (r.status === 401) { showLogin('Session expirée'); return; }
+    const d = await r.json();
+    document.getElementById('s-active').textContent      = d.active ?? '—';
+    document.getElementById('s-ratio').textContent       = d.avg_ratio != null ? d.avg_ratio.toFixed(2) : '—';
+    document.getElementById('s-dlspeed').textContent = fmtSpeed(d.dl_speed);
+    document.getElementById('s-upspeed').textContent = fmtSpeed(d.up_speed);
+    // Trafic réseau
+    if (d.traffic_used_pct != null) {
+      document.getElementById('s-traffic').textContent = `${d.traffic_used_pct} %`;
+      const reset = d.traffic_reset_date
+        ? new Date(d.traffic_reset_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+        : '—';
+      document.getElementById('s-traffic-sub').textContent = `reset le ${reset}`;
+    }
+  } catch(e) {
+  }
+}
+
+async function loadDiskStats() {
+  try {
+    const r = await fetch(BASE+'/api/stats', { headers: { Authorization: `Bearer ${authToken}` } });
+    if (r.status === 401) { showLogin('Session expirée'); return; }
+    const d = await r.json();
+    document.getElementById('s-disk').textContent     = (d.disk_used_gb != null && d.disk_total_gb != null) ? `${d.disk_used_gb} / ${d.disk_total_gb} GB` : '—';
+    document.getElementById('s-disk-sub').textContent = (d.disk_total_gb && d.disk_used_gb != null) ? `${d.disk_total_gb - d.disk_used_gb} GB libre` : 'libre';
+  } catch(e) { /* silencieux */ }
+}
+
+// ── Top leechers ──────────────────────────────────────────
+async function loadTop() {
+  const n   = document.getElementById('f-top').value;
+  const cat = document.getElementById('f-cat').value;
+  const minL= parseInt(document.getElementById('f-leech').value)||0;
+  const tbody = document.getElementById('top-body');
+  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text3)">Chargement...</td></tr>`;
+  try {
+    const r = await fetch(`${BASE}/api/top-leechers?n=${n}&cat=${encodeURIComponent(cat)}`, { headers: { Authorization: `Bearer ${authToken}` } });
+    if (r.status === 401) { showLogin('Session expirée'); return; }
+    const d = await r.json();
+    let items = (d.items||[]).filter(i=>i.leechers>=minL);
+    topItems = items;
+    if (!items.length) { tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text3)">Aucun résultat</td></tr>`; return; }
+    tbody.innerHTML = items.map((t, i)=>{
+      const sel = selectedGrab.has(t.link);
+      return `<tr>
+        <td><input type="checkbox" ${sel?'checked':''} onchange="toggleGrab(${i},this)"></td>
+        <td class="col-nom"><div class="td-name" title="${he(t.name)}">${he(t.name)}</div></td>
+        <td class="td-size col-size">${fmtBytes(t.size)}</td>
+        <td><span class="num-red">${t.leechers.toLocaleString()}</span></td>
+        <td class="col-seeders"><span class="num-green">${t.seeders.toLocaleString()}</span></td>
+        <td><button class="btn-sm" onclick="grabOne(${i})">Grab</button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text3)">Erreur de chargement</td></tr>`;
+  }
+}
+
+function toggleGrab(idx, el) {
+  const url = topItems[idx]?.link;
+  if (url) el.checked ? selectedGrab.add(url) : selectedGrab.delete(url);
+}
+
+async function grabOne(idx) {
+  const item = topItems[idx];
+  if (!item) return;
+  try {
+    await fetch(BASE+'/api/grab', { method:'POST', headers: authHeaders(), body:JSON.stringify({url:item.link,name:item.name}) });
+    alert('Ajouté à qBittorrent : '+item.name);
+    loadStats();
+  } catch(e) { alert('Erreur : '+e.message); }
+}
+
+async function grabSelected() {
+  if (!selectedGrab.size) { alert('Aucun torrent sélectionné.'); return; }
+  for (const url of selectedGrab) await fetch(BASE+'/api/grab',{method:'POST',headers: authHeaders(),body:JSON.stringify({url})});
+  alert(selectedGrab.size+' torrent(s) envoyé(s) à qBittorrent.');
+  selectedGrab.clear();
+  loadTop(); loadStats();
+}
+
+// ── Torrents actifs ───────────────────────────────────────
+let actifsHashes = '';
+
+const DL_STATES = ['downloading','stalledDL','checkingDL','metaDL','allocating'];
+
+function actifsStateBadge(t) {
+  const pct = Math.round((t.progress || 0) * 100);
+  if (t.state === 'error' || t.state === 'unknown')
+    return `<span class="badge badge-amber">erreur</span>`;
+  if (DL_STATES.includes(t.state) || t.progress < 1)
+    return `<span class="badge badge-blue">DL ${pct}%</span>`;
+  if (['stalledUP','pausedUP','queuedUP','checkingUP'].includes(t.state))
+    return `<span class="badge badge-gray">en attente</span>`;
+  return `<span class="badge badge-green">seed ✓</span>`;
+}
+
+function actifsCalc(t, ratioMin, seedMin) {
+  const ratioOk  = t.ratio >= ratioMin;
+  const timeOk   = t.seeding_time >= seedMin;
+  const canDel   = ratioOk && timeOk;
+  const pct      = Math.min(100, Math.round((t.ratio / ratioMin) * 100));
+  const barColor   = ratioOk ? '#1D9E75' : (pct > 60 ? '#c97d10' : '#c03030');
+  const ratioColor = ratioOk ? 'var(--green)' : (pct > 60 ? 'var(--amber-text)' : 'var(--red-text)');
+  return { ratioOk, timeOk, canDel, pct, barColor, ratioColor };
+}
+
+function actifsRowHTML(t, ratioMin, seedMin) {
+  const { ratioOk, timeOk, canDel, pct, barColor, ratioColor } = actifsCalc(t, ratioMin, seedMin);
+  torrentDataMap.set(t.hash, t.name);
+  const suppBtn = canDel
+    ? `<button class="btn-sm btn-danger" onclick="deleteTorrent('${t.hash}')">Suppr.</button>` : '';
+  return `<tr data-hash="${t.hash}">
+    <td class="cell-status">${actifsStateBadge(t)}</td>
+    <td class="col-nom"><div class="td-name" title="${he(t.name)}">${he(t.name)}</div></td>
+    <td class="td-size col-size">${fmtBytes(t.size)}</td>
+    <td class="cell-ratio-td"><div class="prog-wrap">
+      <div class="prog-bar-bg"><div class="cell-ratio-bar prog-bar" style="width:${pct}%;background:${barColor}"></div></div>
+      <span class="cell-ratio-val prog-val" style="color:${ratioColor}">${t.ratio.toFixed(2)}</span>
+    </div></td>
+    <td class="cell-seedtime" style="font-size:12px;color:${timeOk?'var(--green)':'var(--text2)'}">${fmtSecs(t.seeding_time)}</td>
+    <td class="cell-dl" style="font-size:12px;color:var(--blue-text)">${fmtSpeed(t.dlspeed)}</td>
+    <td class="cell-up" style="font-size:12px;color:var(--green)">${fmtSpeed(t.upspeed)}</td>
+    <td class="cell-label">${canDel?`<span class="badge badge-amber">prêt à suppr.</span>`:`<span class="badge badge-gray">conservation</span>`}</td>
+    <td class="cell-action"><span style="display:flex;align-items:center;gap:5px;">${suppBtn}<button class="btn-del-x" onclick="deleteManual('${t.hash}')">✕</button></span></td>
+  </tr>`;
+}
+
+function actifsUpdateRow(row, t, ratioMin, seedMin) {
+  const { ratioOk, timeOk, canDel, pct, barColor, ratioColor } = actifsCalc(t, ratioMin, seedMin);
+  row.querySelector('.cell-status').innerHTML = actifsStateBadge(t);
+  const bar = row.querySelector('.cell-ratio-bar');
+  bar.style.width = pct + '%'; bar.style.background = barColor;
+  const rv = row.querySelector('.cell-ratio-val');
+  rv.textContent = t.ratio.toFixed(2); rv.style.color = ratioColor;
+  const st = row.querySelector('.cell-seedtime');
+  st.textContent = fmtSecs(t.seeding_time); st.style.color = timeOk ? 'var(--green)' : 'var(--text2)';
+  row.querySelector('.cell-dl').textContent = fmtSpeed(t.dlspeed);
+  row.querySelector('.cell-up').textContent = fmtSpeed(t.upspeed);
+  row.querySelector('.cell-label').innerHTML = canDel
+    ? `<span class="badge badge-amber">prêt à suppr.</span>`
+    : `<span class="badge badge-gray">conservation</span>`;
+  torrentDataMap.set(t.hash, t.name);
+  const suppBtn = canDel
+    ? `<button class="btn-sm btn-danger" onclick="deleteTorrent('${t.hash}')">Suppr.</button>` : '';
+  row.querySelector('.cell-action').innerHTML =
+    `<span style="display:flex;align-items:center;gap:5px;">${suppBtn}<button class="btn-del-x" onclick="deleteManual('${t.hash}')">✕</button></span>`;
+}
+
+async function loadActifs() {
+  const tbody = document.getElementById('actifs-body');
+  try {
+    const [tr, rr] = await Promise.all([
+      fetch(BASE+'/api/torrents', { headers: { Authorization: `Bearer ${authToken}` } }).then(r=>{ if(r.status===401){showLogin('Session expirée');throw new Error('401');} return r.json(); }),
+      fetch(BASE+'/api/rules', { headers: { Authorization: `Bearer ${authToken}` } }).then(r=>r.json())
+    ]);
+    const torrents = tr.torrents || [];
+    const ratioMin = rr.ratio_min || 1.0;
+    const seedMin  = (rr.seedtime_min_hours || 48) * 3600;
+    if (!torrents.length) {
+      actifsHashes = '';
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text3)">Aucun torrent actif</td></tr>`;
+      return;
+    }
+    const newHashes = torrents.map(t => t.hash).join(',');
+    if (newHashes !== actifsHashes) {
+      actifsHashes = newHashes;
+      tbody.innerHTML = torrents.map(t => actifsRowHTML(t, ratioMin, seedMin)).join('');
+    } else {
+      for (const t of torrents) {
+        const row = tbody.querySelector(`tr[data-hash="${t.hash}"]`);
+        if (row) actifsUpdateRow(row, t, ratioMin, seedMin);
+      }
+    }
+  } catch(e) {
+    actifsHashes = '';
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text3)">Erreur API qBittorrent</td></tr>`;
+  }
+}
+
+async function deleteTorrent(hash) {
+  const name = torrentDataMap.get(hash) || hash;
+  if (!confirm('Supprimer "'+name+'" ?')) return;
+  actifsHashes = '';
+  await fetch(BASE+'/api/torrents/'+hash, {method:'DELETE', headers: { Authorization: `Bearer ${authToken}` }});
+  loadActifs(); loadStats();
+}
+
+async function deleteManual(hash) {
+  const name = torrentDataMap.get(hash) || hash;
+  if (!confirm('Supprimer ce torrent ?\n\n"'+name+'"')) return;
+  actifsHashes = '';
+  await fetch(BASE+'/api/torrents/'+hash, {method:'DELETE', headers: { Authorization: `Bearer ${authToken}` }});
+  loadActifs(); loadStats();
+}
+
+// ── Règles ────────────────────────────────────────────────
+async function loadRules() {
+  try {
+    const d = await fetch(BASE+'/api/rules', { headers: { Authorization: `Bearer ${authToken}` } }).then(r=>r.json());
+    rules = RULE_DEFS.map((def, i) => ({
+      id:  i,
+      ...def,
+      val: d[def.key] ?? def.defVal,
+      on:  d[def.key] !== undefined ? true : def.defOn,
+    }));
+    rulesOrig = JSON.parse(JSON.stringify(rules));
+    renderRules();
+  } catch(e) { console.error(e); }
+}
+
+function renderRules() {
+  ['cond','limit'].forEach(group => {
+    const el = document.getElementById('rules-'+group);
+    el.innerHTML = rules.filter(r=>r.group===group).map(r=>`
+      <div class="rule-row">
+        <div class="rule-meta">
+          <div class="rule-name">${r.name}</div>
+          <div class="rule-desc">${r.desc}</div>
+        </div>
+        <div class="rule-input-wrap">
+          <input type="number" value="${r.val}" step="${r.step}" min="${r.min}"
+            ${r.on?'':'disabled'}
+            onchange="updateRuleVal(${r.id},this.value)"
+            oninput="updateRuleVal(${r.id},this.value)">
+        </div>
+        <span class="rule-unit">${r.unit}</span>
+        <div class="rule-actions">
+          <input type="checkbox" class="toggle" ${r.on?'checked':''} onchange="toggleRule(${r.id},this.checked)">
+        </div>
+      </div>`).join('');
+  });
+}
+
+function updateRuleVal(id, v) { const r=rules.find(x=>x.id===id); if(r) r.val=parseFloat(v)||v; }
+function toggleRule(id, on)   { const r=rules.find(x=>x.id===id); if(r){r.on=on;renderRules();} }
+
+function resetRules() {
+  if(!confirm('Réinitialiser toutes les règles ?')) return;
+  rules = JSON.parse(JSON.stringify(rulesOrig));
+  renderRules();
+}
+
+async function saveRules() {
+  const payload = {};
+  rules.forEach(r => { payload[r.key] = r.on ? r.val : null; });
+  await fetch(BASE+'/api/rules',{method:'POST',headers: authHeaders(),body:JSON.stringify(payload)});
+}
+
+// ── Cleaner ───────────────────────────────────────────────
+async function loadCleanerStatus() {
+  try {
+    const d = await fetch(BASE+'/api/cleaner/status', { headers: { Authorization: `Bearer ${authToken}` } }).then(r=>r.json());
+    document.getElementById('cleaner-enabled').checked = !!d.enabled;
+    document.getElementById('cleaner-cron').value      = d.cron_schedule || '0 * * * *';
+    document.getElementById('cleaner-last-run').textContent   = fmtDate(d.last_run);
+    document.getElementById('cleaner-last-count').textContent = d.last_deleted_count ?? '—';
+    const badge = document.getElementById('cleaner-status-badge');
+    badge.innerHTML = d.enabled
+      ? `<span class="badge badge-green">Actif</span>`
+      : `<span class="badge badge-gray">Inactif</span>`;
+  } catch(e) { console.error('[cleaner]', e); }
+}
+
+function applyCronPreset(val) {
+  if (val) document.getElementById('cleaner-cron').value = val;
+}
+
+async function saveCleanerSchedule() {
+  const cron_schedule = document.getElementById('cleaner-cron').value.trim();
+  const enabled       = document.getElementById('cleaner-enabled').checked;
+  await fetch(BASE+'/api/cleaner/schedule', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ cron_schedule, enabled })
+  });
+  await loadCleanerStatus();
+}
+
+async function runCleanerNow() {
+  const btn = document.getElementById('cleaner-run-btn');
+  btn.disabled = true;
+  btn.textContent = 'En cours...';
+  try {
+    const r = await fetch(BASE+'/api/cleaner/run', { method:'POST', headers: { Authorization: `Bearer ${authToken}` } });
+    const d = await r.json();
+    showMsg('cleaner-run-msg');
+    await loadCleanerStatus();
+    loadStats();
+  } catch(e) {
+    alert('Erreur : '+e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Lancer maintenant';
+  }
+}
+
+// ── Auto-refresh top leechers ─────────────────────────────
+async function loadAutoRefreshConfig() {
+  try {
+    const d = await fetch(BASE+'/api/auto-refresh', { headers: { Authorization: `Bearer ${authToken}` } }).then(r=>r.json());
+    document.getElementById('autorefresh-enabled').checked = !!d.enabled;
+    document.getElementById('autorefresh-interval').value  = d.interval_minutes || 15;
+    applyAutoRefresh();
+  } catch(e) { console.error('[auto-refresh]', e); }
+}
+
+function applyAutoRefresh() {
+  clearInterval(autoRefreshInterval); autoRefreshInterval = null;
+  const enabled = document.getElementById('autorefresh-enabled')?.checked;
+  const mins    = Math.max(1, parseInt(document.getElementById('autorefresh-interval')?.value) || 15);
+  if (enabled) {
+    autoRefreshInterval = setInterval(() => {
+      autoRefreshLastTime = new Date().toISOString();
+      const el = document.getElementById('autorefresh-last');
+      if (el) el.textContent = fmtDate(autoRefreshLastTime);
+      loadTop();
+    }, mins * 60000);
+  }
+}
+
+async function saveAutoRefresh() {
+  const enabled          = document.getElementById('autorefresh-enabled').checked;
+  const interval_minutes = Math.max(1, parseInt(document.getElementById('autorefresh-interval').value) || 15);
+  await fetch(BASE+'/api/auto-refresh', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ enabled, interval_minutes })
+  });
+  applyAutoRefresh();
+}
+
+// Sauvegarde globale : règles + cleaner + auto-refresh
+async function saveAll() {
+  await Promise.all([saveRules(), saveCleanerSchedule(), saveAutoRefresh()]);
+  showMsg('rules-saved');
+}
+
+async function changePassword() {
+  const current_password = document.getElementById('pwd-current').value;
+  const new_password     = document.getElementById('pwd-new').value;
+  const confirm          = document.getElementById('pwd-confirm').value;
+  const msg = document.getElementById('pwd-msg');
+  if (new_password !== confirm) { msg.style.color='var(--red-text)'; msg.textContent='Les mots de passe ne correspondent pas'; msg.style.opacity=1; return; }
+  if (new_password.length < 8) { msg.style.color='var(--red-text)'; msg.textContent='Minimum 8 caractères'; msg.style.opacity=1; return; }
+  try {
+    const r = await fetch(BASE+'/api/change-password', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ current_password, new_password })
+    });
+    const d = await r.json();
+    if (!r.ok) { msg.style.color='var(--red-text)'; msg.textContent=d.error||'Erreur'; msg.style.opacity=1; return; }
+    msg.style.color='var(--green)'; msg.textContent='Mot de passe changé ✓'; msg.style.opacity=1;
+    document.getElementById('pwd-current').value='';
+    document.getElementById('pwd-new').value='';
+    document.getElementById('pwd-confirm').value='';
+    setTimeout(()=>msg.style.opacity=0, 3000);
+  } catch(e) {
+    msg.style.color='var(--red-text)'; msg.textContent='Erreur réseau'; msg.style.opacity=1;
+  }
+}
+
+// ── Tooltip cron ─────────────────────────────────────────
+(function() {
+  const icon    = document.getElementById('cron-help-icon');
+  const tooltip = document.getElementById('cron-tooltip');
+  if (!icon || !tooltip) return;
+  icon.addEventListener('mouseenter', () => {
+    const r = icon.getBoundingClientRect();
+    const vw = window.innerWidth;
+    tooltip.style.display = 'block';
+    // Toujours vers le haut
+    tooltip.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+    tooltip.style.top    = 'auto';
+    // Aligner à droite sur l'icône si assez de place, sinon à gauche
+    if (r.right >= 340) {
+      tooltip.style.right = (vw - r.right) + 'px';
+      tooltip.style.left  = 'auto';
+    } else {
+      tooltip.style.left  = r.left + 'px';
+      tooltip.style.right = 'auto';
+    }
+  });
+  icon.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+})();
+
+// ── Thème ─────────────────────────────────────────────────
+function updateThemeIcon() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.getElementById('btn-theme').textContent = dark ? '☀' : '☽';
+}
+function toggleTheme() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (dark) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('seedash-theme', 'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('seedash-theme', 'dark');
+  }
+  updateThemeIcon();
+}
+updateThemeIcon();
+
+document.getElementById('login-password').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('login-username').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// ── Init ──────────────────────────────────────────────────
+checkAuth().then(() => {
+  if (authToken) {
+    loadStats();
+    loadDiskStats();
+    loadTop();
+    loadAutoRefreshConfig();
+    setInterval(loadStats, 5000);
+    setInterval(loadDiskStats, 60000);
+  }
+});
+</script>
+</body>
+</html>
