@@ -5,8 +5,10 @@ const path = require('path');
 const axios = require('axios');
 const { decrypt } = require('./crypto-config');
 
-const CFG_PATH = path.join(__dirname, 'config.json');
-const LOG_PATH = path.join(__dirname, 'logs', 'cleaner.log');
+const CFG_PATH            = path.join(__dirname, 'config.json');
+const CONN_PATH           = path.join(__dirname, 'connections.json');
+const LOG_PATH            = path.join(__dirname, 'logs', 'cleaner.log');
+const UPLOAD_HISTORY_PATH = path.join(__dirname, 'logs', 'upload-history.json');
 
 if (!fs.existsSync(path.join(__dirname, 'logs'))) {
   fs.mkdirSync(path.join(__dirname, 'logs'), { recursive: true });
@@ -14,12 +16,13 @@ if (!fs.existsSync(path.join(__dirname, 'logs'))) {
 
 // ── État en mémoire ──────────────────────────────────────
 const status = {
-  enabled:            false,
-  interval_hours:     1,
-  last_run:           null,
-  last_deleted_count: 0,
-  last_run_type:      null,
-  last_deleted_names: [],
+  enabled:             false,
+  interval_hours:      1,
+  last_run:            null,
+  last_deleted_count:  0,
+  last_run_type:       null,
+  last_deleted_names:  [],
+  last_deleted_hashes: [],
 };
 
 let currentTask    = null;
@@ -27,6 +30,10 @@ let qbitCookie     = null;
 let onRunComplete  = null;
 
 // ── Logger ───────────────────────────────────────────────
+/**
+ * Écrit un message horodaté dans le fichier de log cleaner et dans la console.
+ * @param {string} msg - Message à enregistrer.
+ */
 function log(msg) {
   const line = `[${new Date().toISOString()}] ${msg}\n`;
   fs.appendFileSync(LOG_PATH, line);
@@ -34,6 +41,11 @@ function log(msg) {
 }
 
 // ── qBittorrent helpers ──────────────────────────────────
+/**
+ * Authentifie le cleaner auprès de l'API qBittorrent et stocke le cookie de session.
+ * @param {object} cfg - Configuration complète (doit contenir cfg.qbittorrent.url/username/password).
+ * @throws {Error} Si la requête HTTP échoue.
+ */
 async function qbitLogin(cfg) {
   const r = await axios.post(
     `${cfg.qbittorrent.url}/api/v2/auth/login`,
@@ -43,6 +55,16 @@ async function qbitLogin(cfg) {
   qbitCookie = r.headers['set-cookie']?.[0]?.split(';')[0];
 }
 
+/**
+ * Effectue une requête vers l'API qBittorrent avec gestion automatique de la session.
+ * En cas de 403 (session expirée), se reconnecte et réessaie une fois.
+ * @param {object} cfg      - Configuration (url/credentials qBittorrent).
+ * @param {string} method   - Méthode HTTP ('get' ou 'post').
+ * @param {string} endpoint - Chemin de l'endpoint (ex : '/torrents/info').
+ * @param {string|null} data - Corps de la requête POST (format x-www-form-urlencoded).
+ * @returns {Promise<*>} Données retournées par l'API.
+ * @throws {Error} Si la requête échoue après la tentative de reconnexion.
+ */
 async function qbitRequest(cfg, method, endpoint, data = null) {
   if (!qbitCookie) await qbitLogin(cfg);
   const opts = {
@@ -59,6 +81,7 @@ async function qbitRequest(cfg, method, endpoint, data = null) {
     return (await axios(opts)).data;
   } catch (e) {
     if (e.response?.status === 403) {
+      // Session expirée : on se reconnecte et on réessaie une seule fois
       await qbitLogin(cfg);
       opts.headers.Cookie = qbitCookie;
       return (await axios(opts)).data;
@@ -68,36 +91,79 @@ async function qbitRequest(cfg, method, endpoint, data = null) {
 }
 
 // ── Logique de nettoyage ─────────────────────────────────
-// Relit config.json à chaque exécution pour prendre en compte les modifications à chaud.
+/**
+ * Exécute un cycle de nettoyage : récupère tous les torrents qBittorrent,
+ * évalue chaque torrent contre les règles actives, et supprime les torrents éligibles.
+ * Relit config.json à chaque exécution pour prendre en compte les modifications à chaud.
+ * Met à jour l'objet `status` et appelle `onRunComplete` si défini.
+ * @param {string} [source='auto'] - Origine du déclenchement ('auto' ou 'manual').
+ * @returns {Promise<number>} Nombre de torrents supprimés.
+ */
 async function runClean(source = 'auto') {
-  const cfg = JSON.parse(fs.readFileSync(CFG_PATH));
+  const cfg = {
+    ...JSON.parse(fs.readFileSync(CFG_PATH)),
+    ...(() => { try { return JSON.parse(fs.readFileSync(CONN_PATH)); } catch { return {}; } })(),
+  };
   const key = process.env.JWT_SECRET || cfg.auth?.jwt_secret;
-  if (key && cfg.qbittorrent?.password) cfg.qbittorrent.password = decrypt(cfg.qbittorrent.password, key);
-  const { ratio_min, ratio_max, age_min_hours, age_max_hours } = cfg.rules;
-  // cfg.rules_on stocke l'état activé/désactivé séparément des valeurs.
+  if (key) {
+    if (cfg.qbittorrent?.username) cfg.qbittorrent.username = decrypt(cfg.qbittorrent.username, key);
+    if (cfg.qbittorrent?.password) cfg.qbittorrent.password = decrypt(cfg.qbittorrent.password, key);
+  }
+  const { ratio_min, ratio_max, age_min_hours, age_max_hours, upload_min_mb, upload_window_hours } = cfg.auto_clean?.rules || {};
+  // rules_on stocke l'état activé/désactivé séparément des valeurs.
   // Par défaut (clé absente) une règle est considérée active.
-  const rulesOn  = cfg.rules_on || {};
-  const isOn     = (k) => rulesOn[k] !== false;
-  const ageMin   = (age_min_hours || 48) * 3600;
-  const ageMax   = isOn('age_max_hours') && age_max_hours != null ? age_max_hours * 3600 : null;
-  const ratioMax = isOn('ratio_max') && ratio_max != null ? ratio_max : null;
+  const rulesOn       = cfg.auto_clean?.rules_on || {};
+  const isOn          = (k) => rulesOn[k] !== false;
+  const ageMin        = (age_min_hours || 48) * 3600;
+  const ageMax        = isOn('age_max_hours') && age_max_hours != null ? age_max_hours * 3600 : null;
+  const ratioMax      = isOn('ratio_max') && ratio_max != null ? ratio_max : null;
+  const uploadMinMb   = isOn('upload_min_mb') && upload_min_mb > 0 ? upload_min_mb : null;
+  const uploadWinSec  = (upload_window_hours || 48) * 3600;
   // `age` = temps écoulé depuis l'ajout (t.added_on), pas le seedtime réel.
   // Un torrent pausé voit son âge compter normalement.
   const now    = Math.floor(Date.now() / 1000);
 
+  let uploadHistory = {};
+  if (uploadMinMb !== null) {
+    try { uploadHistory = JSON.parse(fs.readFileSync(UPLOAD_HISTORY_PATH)); } catch {}
+  }
+
   log('Nettoyage démarré');
   let deleted = 0;
-  const deletedNames = [];
+  const deletedNames  = [];
+  const deletedHashes = [];
   try {
     const torrents = await qbitRequest(cfg, 'get', '/torrents/info');
     const toDelete = torrents.filter(t => {
       const age = now - t.added_on;
-      // Condition normale : ratio ET âge minimum tous les deux atteints
-      const normalCondition   = t.ratio >= ratio_min && age >= ageMin;
-      // Conditions forcées : indépendantes l'une de l'autre et de normalCondition
+
+      // normalCondition : supprime si TOUTES les règles actives (ratio_min et/ou age_min_hours)
+      // sont satisfaites. Si aucune des deux n'est active, la condition est false (rien à supprimer).
+      const ratioCheck = isOn('ratio_min') ? t.ratio >= ratio_min : true;
+      const ageCheck   = isOn('age_min_hours') ? age >= ageMin : true;
+      const normalCondition = (isOn('ratio_min') || isOn('age_min_hours')) && ratioCheck && ageCheck;
+
+      // maxCondition / ratioMaxCondition : seuils maximaux déclenchant la suppression
+      // indépendamment des autres règles (utile pour forcer la rotation des vieux torrents).
       const maxCondition      = ageMax     !== null && age >= ageMax;
       const ratioMaxCondition = ratioMax   !== null && t.ratio >= ratioMax;
-      return normalCondition || maxCondition || ratioMaxCondition;
+
+      // uploadCondition : supprime un torrent "mort" (faible upload sur la fenêtre glissante)
+      // uniquement si les conditions minimales d'âge et de ratio sont également satisfaites.
+      let uploadCondition = false;
+      if (uploadMinMb !== null && (!isOn('age_min_hours') || age >= ageMin) && (!isOn('ratio_min') || t.ratio >= ratio_min)) {
+        const points = uploadHistory[t.hash.toLowerCase()] || [];
+        if (points.length >= 2) {
+          const winStart = now - uploadWinSec;
+          const inWin    = points.filter(([ts]) => ts >= winStart);
+          // Si assez de points dans la fenêtre, on les utilise ; sinon on prend tout l'historique
+          const src      = inWin.length >= 2 ? inWin : points;
+          const delta    = src[src.length - 1][1] - src[0][1]; // différence d'octets uploadés
+          if (delta >= 0 && delta / 1e6 < uploadMinMb) uploadCondition = true;
+        }
+      }
+      // Un torrent est supprimé si au moins une condition le déclenche
+      return normalCondition || maxCondition || ratioMaxCondition || uploadCondition;
     });
 
     for (const t of toDelete) {
@@ -108,6 +174,7 @@ async function runClean(source = 'auto') {
         log(`Supprimé : ${t.name} (ratio=${t.ratio.toFixed(2)}, âge=${ageDays}j)`);
         deleted++;
         deletedNames.push({ name: t.name, url: `https://c411.org/torrents/${t.hash}` });
+        deletedHashes.push(t.hash.toLowerCase());
       } catch (e) {
         log(`Erreur suppression "${t.name}" : ${e.message}`);
       }
@@ -116,20 +183,28 @@ async function runClean(source = 'auto') {
     log(`Erreur nettoyage : ${e.message}`);
   }
 
-  status.last_run           = new Date().toISOString();
-  status.last_deleted_count = deleted;
-  status.last_run_type      = source;
-  status.last_deleted_names = deletedNames;
+  status.last_run            = new Date().toISOString();
+  status.last_deleted_count  = deleted;
+  status.last_run_type       = source;
+  status.last_deleted_names  = deletedNames;
+  status.last_deleted_hashes = deletedHashes;
   log(`Terminé — ${deleted} torrent(s) supprimé(s)`);
   if (onRunComplete) onRunComplete(status);
   return deleted;
 }
 
 // ── Replanification ──────────────────────────────────────
-// Vérifie toutes les minutes si l'intervalle configuré est écoulé depuis last_run.
+// Fréquence de vérification interne : toutes les minutes.
 // Permet des intervalles arbitraires (1h–8760h) sans dépendre d'une lib cron.
 const CHECK_INTERVAL_MS = 60 * 1000;
 
+/**
+ * Annule l'éventuel timer existant et en recrée un nouveau si le nettoyage est activé.
+ * Toutes les minutes, le timer vérifie si l'intervalle configuré est écoulé depuis last_run ;
+ * si oui, il déclenche runClean('auto').
+ * @param {number|null} newIntervalHours - Nouvel intervalle en heures (1–8760), ou null pour conserver l'actuel.
+ * @param {boolean|undefined} enabled    - Activation du nettoyage automatique, ou undefined pour conserver.
+ */
 function reschedule(newIntervalHours, enabled) {
   if (currentTask) { clearInterval(currentTask); currentTask = null; }
 
@@ -151,9 +226,15 @@ function reschedule(newIntervalHours, enabled) {
 }
 
 // ── Init ─────────────────────────────────────────────────
+/**
+ * Initialise le module cleaner au démarrage : lit config.json, hydrate l'objet `status`
+ * avec les valeurs persistées (last_run, enabled, interval_hours…) et démarre le timer
+ * via reschedule() si le nettoyage automatique est activé.
+ * Appelé automatiquement à l'exigence du module (require).
+ */
 function init() {
   const cfg        = JSON.parse(fs.readFileSync(CFG_PATH));
-  const cleanerCfg = cfg.cleaner || {};
+  const cleanerCfg = cfg.auto_clean || {};
   status.interval_hours     = Math.max(1, parseInt(cleanerCfg.interval_hours) || 1);
   status.enabled            = cleanerCfg.enabled === true;
   status.last_run           = cleanerCfg.last_run           || null;

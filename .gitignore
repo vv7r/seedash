@@ -4,3 +4,4 @@ logs/
 *.log
 .claude/
 ecosystem.config.js
+connections.json
