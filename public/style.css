@@ -1,14 +1,21 @@
 /* === VARIABLES & RESET === */
+/* Reset universel : inclut les pseudo-éléments pour éviter les débordements imprévus */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* Palette claire (thème par défaut) — toutes les couleurs passent par ces variables */
 :root {
+  /* Fonds : bg = arrière-plan principal, bg2 = surfaces légèrement sombres, bg3 = blanc/cartes */
   --bg: #f5f4ef;
+  --bg-hover: #f8f7f4;
   --bg2: #eceae3;
   --bg3: #ffffff;
+  /* Bordures semi-transparentes pour s'adapter aux deux thèmes */
   --border: rgba(0,0,0,0.08);
   --border2: rgba(0,0,0,0.15);
+  /* Texte : text = principal, text2 = secondaire/labels, text3 = discret/placeholders */
   --text: #1a1a1a;
   --text2: #666660;
   --text3: #aaa9a0;
+  /* Couleurs sémantiques : utilisées pour badges, états, alertes */
   --green: #0f6e56;
   --green-bg: #e1f5ee;
   --green-text: #085041;
@@ -19,11 +26,14 @@
   --blue-text: #185fa5;
   --gray-bg: #ebebeb;
   --gray-text: #666;
+  /* Rayons de coins réutilisés dans toute l'interface */
   --radius: 8px;
   --radius-lg: 12px;
 }
+/* Surcharge des variables pour le thème sombre — le reste du CSS ne change pas */
 [data-theme="dark"] {
   --bg: #0f0f11;
+  --bg-hover: #1c1c20;
   --bg2: #17171a;
   --bg3: #1e1e22;
   --border: rgba(255,255,255,0.07);
@@ -43,20 +53,27 @@
 }
 
 /* === BODY & LAYOUT === */
-body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; overflow-y: scroll; }
+/* overflow-y: scroll forcé pour éviter le saut de layout lors des modales (scrollbar toujours visible) */
+/* text-size-adjust: 100% empêche iOS de grossir le texte en mode paysage */
+body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; overflow-y: scroll; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Conteneur centré avec padding bas généreux pour ne pas masquer le contenu sous la navigation mobile */
 .app { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
 
 /* === TOPBAR === */
 .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
 .status-bar { display: flex; align-items: center; gap: 24px; }
 .status-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+/* LED : petit point coloré indiquant l'état de connexion (qBittorrent, C411, Ultra.cc) */
 .led { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; }
 .led-ok { background: #1D9E75; }
 .led-err { background: #e74c3c; }
+/* État "vérification en cours" : clignotement via animation d'opacité */
 .led-checking { background: #f39c12; animation: ledBlink 0.8s ease-in-out infinite; }
 @keyframes ledBlink { 0%,100%{opacity:1} 50%{opacity:0.2} }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
-.btn-theme { width: 28px; height: 28px; border-radius: 50%; border: 0.5px solid var(--border2); background: none; color: var(--text); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.12s; }
+/* Bouton déconnexion masqué par défaut, affiché via JS après authentification */
+#btn-logout { display: none; }
+.btn-theme { width: 28px; height: 28px; border-radius: 50%; border: 0.5px solid var(--border2); background: none; color: var(--text); font-size: 14px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.12s; }
 .btn-theme:hover { background: var(--bg2); }
 
 /* === STATS CARDS === */
@@ -72,7 +89,7 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, 'S
 .tabs .tab-config { margin-left: auto; }
 .tab { font-size: 13px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text2); cursor: pointer; font-weight: 400; transition: all 0.12s; }
 .tab:hover { color: var(--text); }
-.tab.active { background: var(--text); color: var(--bg3); border-color: var(--text); font-weight: 500; }
+.tab.active { background: var(--bg2); color: var(--text); border-color: var(--border2); font-weight: 500; }
 
 /* === CARD === */
 .card { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 1rem; }
@@ -83,6 +100,10 @@ input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 input[type=number] { -moz-appearance: textfield; }
 .card-filter .spacer { flex: 1; }
+#top-error-msg, #autograb-error-msg { font-size: 11px; color: var(--red-text); opacity: 0.7; }
+#top-refresh-info { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+#top-last-refresh, #top-next-refresh { font-size: 11px; color: var(--text2); opacity: 0.6; }
+.tbl-empty { text-align: center; padding: 2rem; color: var(--text3); }
 .btn-sm { font-size: 12px; padding: 4px 12px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: none; color: var(--text); cursor: pointer; transition: background 0.12s; }
 .btn-sm:hover { background: var(--bg2); }
 .btn-primary { background: var(--text); color: var(--bg3); border-color: var(--text); }
@@ -93,16 +114,54 @@ input[type=number] { -moz-appearance: textfield; }
 .btn-del-x:hover { opacity: 1; background: #fcebeb; }
 [data-theme="dark"] .btn-del-x:hover { background: rgba(163,45,45,0.2); }
 .cell-action, .cell-action-th { text-align: center; width: 1px; white-space: nowrap; }
-.cell-action > span { justify-content: center; }
+.cell-action > span { display: flex; align-items: center; gap: 5px; justify-content: center; }
+
+/* === GRAPHIQUE UPLOAD (ligne expandable) === */
+/* Chaque ligne de torrent actif est cliquable pour afficher/masquer le graphique d'upload */
+#actifs-body tr[data-hash]:not(.chart-row) { cursor: pointer; }
+#actifs-body tr[data-hash]:not(.chart-row) td { cursor: pointer; }
+#actifs-body tr[data-hash]:not(.chart-row):hover td { background: rgba(0,0,0,0.025); }
+[data-theme="dark"] #actifs-body tr[data-hash]:not(.chart-row):hover td { background: rgba(255,255,255,0.035); }
+/* La ligne graphique colle visuellement à la ligne torrent : pas de padding ni de bordure haute */
+.chart-row td { padding: 0 !important; background: var(--bg2); border-top: none !important; }
+/* position: relative nécessaire pour positionner le bouton d'expansion en absolu */
+.chart-container { position: relative; padding: 0; }
+.upload-chart { display: block; max-width: 100%; }
+.chart-empty { padding: 1.5rem; text-align: center; font-size: 12px; color: var(--text2); }
+/* Bouton d'expansion en position absolue dans le coin haut-droit du graphique */
+/* z-index: 1 pour passer au-dessus du canvas sans bloquer les interactions avec le graphique */
+.chart-expand-btn { position: absolute; top: 6px; right: 2px; background: transparent; border: none; color: var(--text2); font-size: 18px; cursor: pointer; padding: 2px 5px; border-radius: 4px; line-height: 1; opacity: 0.5; transition: opacity 0.15s; z-index: 1; }
+.chart-expand-btn:hover { opacity: 1; }
+/* Masqué sur écrans tactiles où le pinch-to-zoom remplace l'agrandissement */
+@media (pointer: coarse) { .chart-expand-btn { display: none; } }
+
+/* === MODAL GRAPHIQUE === */
+/* z-index: 200 — au-dessus des cartes mais sous la modale de confirmation (10001) et le toast (10000) */
+.chart-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 200; display: none; align-items: center; justify-content: center; padding: 1rem; }
+.chart-modal-overlay.open { display: flex; }
+/* min() permet d'occuper jusqu'à 94vw sur mobile sans dépasser 1100px sur desktop */
+.chart-modal-box { background: var(--bg); border-radius: 10px; width: min(94vw, 1100px); padding: 1rem; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+.chart-modal-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+/* flex: 1 + overflow: hidden + text-overflow pour tronquer les noms longs dans l'en-tête */
+.chart-modal-torrent-name { flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.chart-range-btns { display: flex; gap: 4px; flex-shrink: 0; }
+.btn-range { font-size: 11px; padding: 3px 9px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--text2); cursor: pointer; }
+.btn-range.active { background: var(--bg2); color: var(--text); border-color: var(--border2); font-weight: 500; }
+.chart-modal-canvas-wrap { width: 100%; overflow: hidden; }
+#chart-modal-canvas { display: block; width: 100%; }
 
 /* === TABLES === */
+/* border-collapse: collapse supprime l'espace entre les cellules pour un rendu unifié */
 table { width: 100%; border-collapse: collapse; }
 th { text-align: left; font-size: 11px; font-weight: 500; color: var(--text2); padding: 8px 12px; border-bottom: 0.5px solid var(--border); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
 td { padding: 10px 12px; border-bottom: 0.5px solid var(--border); color: var(--text); vertical-align: middle; }
+/* Supprime la bordure de la dernière ligne pour éviter le doublon avec la bordure de la carte */
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: var(--bg2); }
+tr:hover td { background: var(--bg-hover); }
+/* Tronque les noms longs avec une ellipse — fonctionne en combinaison avec col-nom */
 .td-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.td-size { font-size: 12px; color: var(--text2); white-space: nowrap; }
+.td-size { font-size: 12px; color: var(--text2); white-space: nowrap; text-align: right; }
+.col-size { text-align: right; }
 
 /* === BADGES === */
 .badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
@@ -113,14 +172,20 @@ tr:hover td { background: var(--bg2); }
 
 /* === HISTORIQUE === */
 .hist-table { width:100%; border-collapse:collapse; font-size:13px; }
-.hist-table th { text-align:left; padding:8px 16px; font-size:11px; font-weight:600; color:var(--text2); border-bottom:0.5px solid var(--border); text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
-.hist-table td { padding:9px 16px; border-bottom:0.5px solid var(--border); vertical-align:middle; white-space:nowrap; }
+.hist-table th { text-align:left; padding:8px 12px; font-size:11px; font-weight:600; color:var(--text2); border-bottom:0.5px solid var(--border); text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+.hist-table td { padding:10px 12px; border-bottom:0.5px solid var(--border); vertical-align:middle; white-space:nowrap; }
 .hist-table tr:last-child td { border-bottom:none; }
-.hist-table tr:hover td { background:var(--bg2); }
+.hist-table tr:hover td { background: var(--bg-hover); }
+/* Trick table-layout : width:99% + max-width:0 force la colonne résultat à absorber tout l'espace */
+/* disponible tout en permettant l'ellipse via overflow:hidden sur le texte enfant */
 .hist-table td.col-hist-result { width:99%; max-width:0; overflow:hidden; white-space:normal; }
-.hist-table td.col-hist-del  { padding-left:6px; padding-right:6px; }
+/* width:1px + white-space:nowrap contraint la colonne suppression à sa taille minimale */
+.hist-table td.col-hist-del  { width:1px; white-space:nowrap; text-align:center; vertical-align:middle; }
 .hist-names { font-size:11px; color:var(--text2); margin-top:3px; }
 .hist-names > div { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.col-hist-date { white-space: nowrap; }
+.hist-date-day, .hist-date-time { display: block; }
+.hist-date-time { font-size: 11px; color: var(--text2); }
 
 /* === PROGRESS === */
 .prog-wrap { display: flex; align-items: center; gap: 8px; }
@@ -130,22 +195,32 @@ tr:hover td { background: var(--bg2); }
 
 /* === LEECHERS / SEEDERS === */
 .num-red   { font-size: 12px; font-weight: 500; color: var(--red-text); }
+.col-leechers, .col-seeders { text-align: center; }
+td.cell-status, td.cell-label { text-align: center; }
+.col-hist-type, .col-hist-source { text-align: center; }
+.col-action-top { text-align: center; }
 .num-green { font-size: 12px; font-weight: 500; color: var(--green); }
 
 /* === COLONNES TRIABLES === */
+/* user-select: none évite la sélection de texte lors des clics répétés pour changer le tri */
 th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 th.sortable:hover { background: var(--bg2); }
+/* Indicateur de tri neutre (↕) — remplacé par ↑ ou ↓ selon l'état actif */
 th.sortable::after { content: ' ↕'; opacity: 0.3; font-size: 10px; }
 th.sort-asc::after  { content: ' ↑'; opacity: 1; color: var(--accent); }
 th.sort-desc::after { content: ' ↓'; opacity: 1; color: var(--accent); }
+/* Sélecteurs alternatifs pour les colonnes gérées via data-action et data-sort (délégation JS) */
 th[data-action="sort-actifs"] { cursor: pointer; user-select: none; }
 th[data-action="sort-actifs"]:hover { background: var(--bg2); }
 th[data-sort] { cursor: pointer; user-select: none; }
 th[data-sort]:hover { background: var(--bg2); }
 
 /* === TOGGLE === */
+/* Checkbox native masquée et remplacée visuellement par un switch personnalisé */
+/* appearance: none supprime le rendu natif du navigateur sur tous les moteurs */
 .toggle { appearance: none; -webkit-appearance: none; width: 34px; height: 19px; border-radius: 10px; cursor: pointer; position: relative; flex-shrink: 0; border: none; transition: background 0.2s; background: #c8c7c0; }
 .toggle:checked { background: #1D9E75; }
+/* ::before simule le "pouce" du toggle — déplacé via translateX quand coché */
 .toggle::before { content: ''; position: absolute; width: 15px; height: 15px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
 .toggle:checked::before { transform: translateX(15px); }
 
@@ -163,10 +238,16 @@ th[data-sort]:hover { background: var(--bg2); }
 .rule-actions { display: flex; align-items: center; }
 
 /* === CARD FOOTER === */
-.card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 0.5px solid var(--border); }
+.card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; border-top: 0.5px solid var(--border); }
 .saved-msg { font-size: 11px; color: var(--green); opacity: 0; transition: opacity 0.3s; }
+.footer-info { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; font-size: 12px; color: var(--text2); opacity: 0.7; }
+.footer-info strong { font-weight: 500; }
+.footer-info-type { margin-left: 5px; opacity: 0.6; font-size: 11px; }
+.footer-actions { display: flex; align-items: center; gap: 8px; }
+.card-mt { margin-top: 1rem; }
 
 /* === SECTIONS === */
+/* Système d'onglets : toutes les sections sont masquées par défaut, JS ajoute .active sur la sélectionnée */
 .section { display: none; }
 .section.active { display: block; }
 
@@ -176,7 +257,7 @@ input[type=checkbox]:not(.toggle) { accent-color: #1D9E75; width: 14px; height: 
 /* === CLEANER === */
 .cleaner-row { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 0.5px solid var(--border); flex-wrap: wrap; }
 .cleaner-row:last-child { border-bottom: none; }
-.cleaner-meta { flex: 1; min-width: 160px; }
+.cleaner-meta { flex: 1; min-width: 160px; width: 100%; }
 .cleaner-cron-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cleaner-cron-wrap input[type=text] { font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); width: 100%; box-sizing: border-box; font-family: monospace; }
 .cleaner-cron-wrap input[type=text]:focus { outline: none; background: var(--bg3); border-color: #888; }
@@ -185,37 +266,124 @@ input[type=checkbox]:not(.toggle) { accent-color: #1D9E75; width: 14px; height: 
 .cleaner-info span { display: flex; align-items: center; gap: 5px; }
 .cleaner-info strong { color: var(--text); }
 
+/* === CONFIG === */
+.cfg-section { padding: 12px 16px; }
+.cfg-section-border { border-bottom: 0.5px solid var(--border); }
+.cfg-title { margin-bottom: 8px; }
+.cfg-fields-1 { max-width: 420px; }
+.cfg-fields-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cfg-fields-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.cfg-fields-3-end { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: end; }
+.cfg-hint { opacity: 0.5; font-size: 11px; }
+.cfg-label { margin-bottom: 4px; }
+.cfg-input { width: 100%; padding: 6px 8px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 13px; box-sizing: border-box; }
+.pwd-footer { border-top: 0.5px solid var(--border); margin-top: 12px; margin-left: -16px; margin-right: -16px; padding: 12px 16px 0; display: flex; align-items: center; justify-content: space-between; }
+#pwd-msg { font-size: 12px; color: var(--green); opacity: 0; transition: opacity 0.3s; }
+#history-content { padding: 0; }
+.hist-loading { padding: 16px; font-size: 13px; color: var(--text2); }
+.hist-empty { padding: 24px 16px; font-size: 13px; color: var(--text2); text-align: center; }
+.hist-error { padding: 16px; color: var(--red-text); font-size: 13px; }
+
+/* === ACTIFS === */
+.cell-seedtime { font-size: 12px; color: var(--text2); }
+/* Passage en vert quand l'âge minimum est atteint (règle age_min_hours satisfaite) */
+.cell-seedtime.time-ok { color: var(--green); }
+.cell-dl { font-size: 12px; }
+.cell-up { font-size: 12px; }
+/* Trois états visuels pour le ratio : ok (vert), warn (ambre), low (rouge) */
+/* La classe d'état est posée sur la ligne <tr> ou la cellule parente par le JS */
+.ratio-state-ok   .cell-ratio-bar  { background: #1D9E75; }
+.ratio-state-ok   .cell-ratio-val  { color: var(--green); }
+.ratio-state-warn .cell-ratio-bar  { background: #c97d10; }
+.ratio-state-warn .cell-ratio-val  { color: var(--amber-text); }
+.ratio-state-low  .cell-ratio-bar  { background: #c03030; }
+.ratio-state-low  .cell-ratio-val  { color: var(--red-text); }
+
 /* === RESPONSIVE === */
-.tbl-wrap { overflow-x: auto; }
+/* Conteneur scrollable horizontalement pour les tableaux sur petits écrans */
+/* -webkit-overflow-scrolling: touch active le défilement inertiel sur iOS */
+.tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .tbl-wrap table { width: 100%; }
+/* white-space: nowrap sur les cellules empêche le retour à la ligne dans le scroll horizontal */
 .tbl-wrap td, .tbl-wrap th { white-space: nowrap; }
+/* Trick col-nom : width:99% + max-width:0 force la colonne nom à absorber tout l'espace libre */
+/* sans déborder — l'ellipse nécessite overflow:hidden sur le conteneur et un max-width défini */
 .tbl-wrap .col-nom { width: 99%; max-width: 0; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tbl-wrap .col-nom .td-name { max-width: 100%; }
+
+/* === SAFE AREA iOS === */
+/* Compense le notch, le Dynamic Island et la barre d'accueil des iPhone récents */
+/* env(safe-area-inset-*) fournit la valeur en pixels, 0 est le fallback pour les autres navigateurs */
+body { padding-bottom: env(safe-area-inset-bottom, 0); }
+.app {
+  padding-bottom: calc(3rem + env(safe-area-inset-bottom, 0));
+  padding-left:  max(1rem, env(safe-area-inset-left, 0));
+  padding-right: max(1rem, env(safe-area-inset-right, 0));
+}
+/* Le toast se décale vers le haut pour ne pas être masqué par la barre d'accueil */
+.toast { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0)); }
+.login-screen { padding-left: env(safe-area-inset-left, 0); padding-right: env(safe-area-inset-right, 0); }
+
+/* === BREAKPOINTS === */
+/* Grille de stats : 6 colonnes → 3 colonnes à 900px */
 @media (max-width: 900px) {
   .stats { grid-template-columns: repeat(3, minmax(0,1fr)); }
 }
-@media (max-width: 600px) {
-  .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .tabs { flex-wrap: wrap; }
-}
+/* Masque les barres de progression (trop étroites) et réduit le padding des cellules */
 @media (max-width: 800px) {
   .prog-bar-bg { display: none; }
   td, th { padding: 8px 6px; }
 }
+/* Masque la colonne seeders et les labels de statut (espace trop limité) */
 @media (max-width: 750px) {
   .col-seeders, .cell-label { display: none; }
 }
+/* Masque le temps de seed pour libérer de la place */
 @media (max-width: 650px) {
   .cell-seedtime { display: none; }
 }
+/* Grille de stats : 3 colonnes → 2 colonnes ; les onglets passent en retour à la ligne */
+@media (max-width: 600px) {
+  .app { padding: 1rem max(0.75rem, env(safe-area-inset-right, 0)) calc(3rem + env(safe-area-inset-bottom, 0)) max(0.75rem, env(safe-area-inset-left, 0)); }
+  .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .stat-val { font-size: 17px; }
+  .tabs { flex-wrap: wrap; gap: 5px; }
+  .tab { padding: 6px 12px; font-size: 12px; }
+  .tabs .tab-config { margin-left: 0; }
+  .card-footer { flex-wrap: wrap; gap: 10px; }
+  .footer-actions { margin-left: auto; }
+}
+/* Masque DL/UP dans le tableau des torrents actifs */
 @media (max-width: 550px) {
   .cell-dl, .cell-up { display: none; }
 }
+/* Formulaires de config en colonne unique ; modale collée au bas de l'écran (sheet mobile) */
+@media (max-width: 480px) {
+  .cfg-fields-2,
+  .cfg-fields-3,
+  .cfg-fields-3-end { grid-template-columns: 1fr; }
+  .cfg-fields-1 { max-width: 100%; }
+  .pwd-footer { margin-left: 0; margin-right: 0; }
+  /* Toast pleine largeur sur très petit écran */
+  .toast { right: 0.75rem; left: 0.75rem; max-width: none; }
+  /* Modale en bottom-sheet : alignée en bas, coins bas carrés */
+  .modal-overlay { align-items: flex-end; }
+  .modal-box { max-width: 100%; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .login-box { margin: 0.75rem; max-width: calc(100% - 1.5rem); }
+}
+/* Masque la colonne taille sur les très petits écrans */
 @media (max-width: 450px) {
   .col-size { display: none; }
 }
+/* Masque les libellés texte des LEDs, conserve uniquement les points colorés */
+@media (max-width: 380px) {
+  .status-item > span { display: none; }
+  .status-bar { gap: 14px; }
+}
+
 
 /* === LOGIN === */
+/* z-index: 9999 — recouvre toute l'interface jusqu'à l'authentification réussie */
 .login-screen { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 9999; align-items: center; justify-content: center; }
 .login-screen.active { display: flex; }
 .login-box { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; width: 100%; max-width: 340px; }
@@ -229,6 +397,7 @@ input[type=checkbox]:not(.toggle) { accent-color: #1D9E75; width: 14px; height: 
 .login-error { font-size: 12px; color: var(--red-text); margin-top: 0.75rem; min-height: 16px; text-align: center; }
 
 /* === MODAL === */
+/* z-index: 10001 — au-dessus du toast (10000) et de la modal graphique (200) */
 .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 10001; align-items: center; justify-content: center; }
 .modal-overlay.active { display: flex; }
 .modal-box { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; width: 100%; max-width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
@@ -237,15 +406,20 @@ input[type=checkbox]:not(.toggle) { accent-color: #1D9E75; width: 14px; height: 
 
 /* === SPINNER === */
 @keyframes spin { to { transform: rotate(360deg); } }
+/* Anneau de chargement : bordure complète sauf un côté (border-top-color) pour l'effet rotatif */
 .spinner { display: none; width: 13px; height: 13px; border: 2px solid var(--border2); border-top-color: var(--text2); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
 .spinner.active { display: inline-block; }
 
 /* === TOAST === */
+/* opacity: 0 + pointer-events: none = invisible et non-interactif par défaut */
+/* z-index: 10000 — sous la modale de confirmation (10001) mais au-dessus du reste */
 .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 10px 16px; border-radius: var(--radius); font-size: 13px; color: #fff; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 10000; max-width: 420px; word-break: break-word; }
+/* JS ajoute/retire .show — la transition CSS gère le fondu */
 .toast.show { opacity: 1; }
 .toast-success { background: #1D9E75; }
 .toast-error   { background: #a32d2d; }
 
-/* === LINKS (remplace les handlers onmouseover/onmouseout) === */
+/* === LIENS TABLEAU === */
+/* Remplace les handlers onmouseover/onmouseout interdits par la CSP ; le soulignement est géré en CSS pur */
 .td-link { color: inherit; text-decoration: none; }
 .td-link:hover { text-decoration: underline; }

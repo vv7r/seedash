@@ -143,7 +143,7 @@ Le tri est appliqué dans `renderTopItems` avant génération du HTML.
 
 CSP active avec `useDefaults: false` (exclut `upgrade-insecure-requests` qui cassait le chargement CSS en HTTP) :
 - `script-src 'self'` — bloque tout script inline et `eval()`
-- `style-src 'self' 'unsafe-inline'` — `'unsafe-inline'` requis pour les `style=""` dans les innerHTML dynamiques
+- `style-src 'self'` — pas de styles inline ; les largeurs dynamiques (barre ratio) sont appliquées via `element.style.width` après insertion
 - `connect-src 'self'` — fetch() limité à la même origine
 - `frame-ancestors 'none'` — pas d'embedding en iframe
 
