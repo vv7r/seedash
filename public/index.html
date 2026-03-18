@@ -2,8 +2,16 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>SeeDash</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SeeDash">
+<meta name="theme-color" content="#f5f4ef" id="meta-theme-color">
+<link rel="manifest" href="/seedash/manifest.json">
+<link rel="icon" type="image/png" href="/seedash/icon.png">
+<link rel="apple-touch-icon" href="/seedash/icon.png">
 <script src="/seedash/theme-init.js"></script>
 <link rel="stylesheet" href="/seedash/style.css">
 </head>
@@ -15,7 +23,7 @@
     <div class="login-title"><div class="dot"></div> SeeDash</div>
     <div class="login-field">
       <label>Nom d'utilisateur</label>
-      <input type="text" id="login-username" autocomplete="username" placeholder="admin">
+      <input type="text" id="login-username" autocomplete="username" autocapitalize="none" placeholder="admin">
     </div>
     <div class="login-field">
       <label>Mot de passe</label>
@@ -37,7 +45,7 @@
     </div>
     <div class="topbar-right">
       <button class="btn-theme" id="btn-theme" title="Basculer le thème"></button>
-      <button class="btn-sm" id="btn-logout" style="display:none">Déconnexion</button>
+      <button class="btn-sm" id="btn-logout">Déconnexion</button>
     </div>
   </div>
 
@@ -88,47 +96,14 @@
     <div class="card">
       <div class="card-filter">
         <label>Catégorie</label>
-        <select id="f-cat">
-          <option value="">Toutes</option>
-          <optgroup label="Vidéo">
-            <option value="2030">Films</option>
-            <option value="5000">Séries TV</option>
-            <option value="2070">Documentaires</option>
-            <option value="2060">Animé (film)</option>
-            <option value="5070">Animé (série)</option>
-            <option value="5060">Sport</option>
-            <option value="5080">Émissions TV</option>
-            <option value="2090">Concerts</option>
-            <option value="2080">Spectacles</option>
-            <option value="2050">Vidéo-clips</option>
-          </optgroup>
-          <optgroup label="Audio">
-            <option value="3010">Musique</option>
-            <option value="3030">Audiobooks</option>
-          </optgroup>
-          <optgroup label="Livres">
-            <option value="7020">Livres</option>
-            <option value="7030">BD / Comics / Manga</option>
-            <option value="7010">Presse</option>
-          </optgroup>
-          <optgroup label="Apps &amp; Jeux">
-            <option value="4000">PC / Apps</option>
-            <option value="1000">Consoles</option>
-            <option value="4050">Jeux PC</option>
-          </optgroup>
-          <optgroup label="Autre">
-            <option value="6000">XXX</option>
-            <option value="8010">Impression 3D</option>
-          </optgroup>
-        </select>
-        <label>Leechers min.</label>
-        <input type="number" id="f-leech" value="10" min="0" style="width:60px">
-        <label>Top</label>
-        <select id="f-top"><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option></select>
+        <select id="f-cat"><option value="">Toutes</option></select>
         <div class="spacer"></div>
-        <span id="top-error-msg" style="font-size:11px;color:var(--red-text);opacity:0.7;"></span>
         <div id="top-spinner" class="spinner"></div>
-        <span id="top-last-refresh" style="font-size:11px;color:var(--text2);opacity:0.6;"></span>
+        <div id="top-refresh-info">
+          <span id="top-last-refresh"></span>
+          <span id="top-next-refresh"></span>
+          <span id="top-error-msg"></span>
+        </div>
         <button class="btn-sm" id="btn-load-top">Actualiser</button>
       </div>
       <div class="tbl-wrap"><table>
@@ -136,13 +111,13 @@
           <th><input type="checkbox" id="top-select-all" title="Tout sélectionner"></th>
           <th class="col-nom sortable" data-col="name">Nom</th>
           <th class="col-size sortable" data-col="size">Taille</th>
-          <th class="sortable sort-desc" data-col="leechers">Leechers</th>
+          <th class="col-leechers sortable sort-desc" data-col="leechers">Leechers</th>
           <th class="col-seeders sortable" data-col="seeders">Seeders</th>
-          <th>Action</th>
+          <th class="col-action-top">Action</th>
         </tr></thead>
-        <tbody id="top-body"><tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text3)">Chargement...</td></tr></tbody>
+        <tbody id="top-body"><tr><td colspan="6" class="tbl-empty">Chargement...</td></tr></tbody>
       </table></div>
-      <div class="card-footer" style="padding-left:12px;padding-right:12px;">
+      <div class="card-footer">
         <button class="btn-sm" id="btn-grab-selected">Grabber la sélection</button>
       </div>
     </div>
@@ -151,6 +126,12 @@
   <!-- Tab: Torrents actifs -->
   <div id="sec-actifs" class="section">
     <div class="card">
+      <div class="card-filter">
+        <label>Catégorie</label>
+        <select id="f-cat-actifs"><option value="">Toutes</option></select>
+        <div class="spacer"></div>
+        <button class="btn-sm" id="btn-toggle-all-charts">Déployer tout</button>
+      </div>
       <div class="tbl-wrap"><table>
         <thead><tr>
           <th></th>
@@ -163,7 +144,7 @@
           <th class="cell-label">Statut</th>
           <th class="cell-action-th"></th>
         </tr></thead>
-        <tbody id="actifs-body"><tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text3)">Chargement...</td></tr></tbody>
+        <tbody id="actifs-body"><tr><td colspan="9" class="tbl-empty">Chargement...</td></tr></tbody>
       </table></div>
     </div>
   </div>
@@ -188,11 +169,13 @@
         </div>
       </div>
       <div id="rules-limit"></div>
-      <div class="card-footer" style="justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:var(--text2);opacity:0.7;">
-          <span>Dernière actualisation : <strong style="font-weight:500;" id="autorefresh-last">—</strong> · <strong style="font-weight:500;" id="autograb-last-count">—</strong> grabé(s)<span id="autorefresh-last-type" style="margin-left:5px;opacity:0.6;font-size:11px;"></span></span>
+      <div class="card-footer">
+        <div class="footer-info">
+          <span>Dernière actualisation : <strong id="autorefresh-last">—</strong> · <strong id="autograb-last-count">—</strong> grabé(s)<span id="autorefresh-last-type" class="footer-info-type"></span></span>
+          <span id="autograb-next-refresh"></span>
+          <span id="autograb-error-msg"></span>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
+        <div class="footer-actions">
           <span class="saved-msg" id="autograb-run-msg">—</span>
           <button class="btn-sm" id="btn-auto-grab">Exécuter</button>
         </div>
@@ -204,7 +187,7 @@
       <div class="section-sep">Auto clean</div>
       <div class="rule-row">
         <div class="rule-meta">
-          <div class="rule-name">Activer le nettoyage automatique</div>
+          <div class="rule-name">Nettoyage automatique</div>
           <div class="rule-desc">Supprime les torrents selon les règles ci-dessous</div>
         </div>
         <div class="rule-input-wrap">
@@ -216,11 +199,12 @@
         </div>
       </div>
       <div id="rules-cond"></div>
-      <div class="card-footer" style="justify-content:space-between;">
-        <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:var(--text2);opacity:0.7;">
-          <span>Dernière exécution : <strong style="font-weight:500;" id="cleaner-last-run">—</strong> · <strong style="font-weight:500;" id="cleaner-last-count">—</strong> supprimé(s)<span id="cleaner-last-run-type" style="margin-left:5px;opacity:0.6;font-size:11px;"></span></span>
+      <div class="card-footer">
+        <div class="footer-info">
+          <span>Dernière exécution : <strong id="cleaner-last-run">—</strong> · <strong id="cleaner-last-count">—</strong> supprimé(s)<span id="cleaner-last-run-type" class="footer-info-type"></span></span>
+          <span id="cleaner-next-run"></span>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
+        <div class="footer-actions">
           <span class="saved-msg" id="cleaner-run-msg">Nettoyage lancé ✓</span>
           <button class="btn-sm" id="cleaner-run-btn">Exécuter</button>
         </div>
@@ -228,79 +212,79 @@
     </div>
 
     <!-- Connexions & API -->
-    <div class="card" style="margin-top:1rem;">
+    <div class="card card-mt">
       <div class="section-sep">Connexions &amp; API</div>
 
       <!-- C411 -->
-      <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);">
-        <div class="rule-name" style="margin-bottom:8px;">C411</div>
-        <div style="max-width:420px;">
-          <div class="rule-desc" style="margin-bottom:4px;">Clé API <span id="sec-c411-apikey-cur" style="opacity:0.5;font-size:11px;"></span></div>
-          <input type="password" id="sec-c411-apikey" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;box-sizing:border-box;" placeholder="Nouveau — laisser vide pour conserver">
+      <div class="cfg-section cfg-section-border">
+        <div class="rule-name cfg-title">C411</div>
+        <div class="cfg-fields-1">
+          <div class="rule-desc cfg-label">Clé API <span id="sec-c411-apikey-cur" class="cfg-hint"></span></div>
+          <input type="password" id="sec-c411-apikey" class="cfg-input" placeholder="Nouveau — laisser vide pour conserver">
         </div>
       </div>
 
       <!-- qBittorrent -->
-      <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);">
-        <div class="rule-name" style="margin-bottom:8px;">qBittorrent</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div class="cfg-section cfg-section-border">
+        <div class="rule-name cfg-title">qBittorrent</div>
+        <div class="cfg-fields-3">
           <div>
-            <div class="rule-desc" style="margin-bottom:4px;">URL</div>
-            <input type="text" id="sec-qbit-url" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;box-sizing:border-box;" placeholder="http://127.0.0.1:PORT">
+            <div class="rule-desc cfg-label">URL</div>
+            <input type="text" id="sec-qbit-url" class="cfg-input" placeholder="http://127.0.0.1:PORT">
           </div>
           <div>
-            <div class="rule-desc" style="margin-bottom:4px;">Utilisateur</div>
-            <input type="text" id="sec-qbit-username" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;box-sizing:border-box;" placeholder="admin">
+            <div class="rule-desc cfg-label">Utilisateur</div>
+            <input type="text" id="sec-qbit-username" class="cfg-input" placeholder="admin">
           </div>
           <div>
-            <div class="rule-desc" style="margin-bottom:4px;">Mot de passe <span id="sec-qbit-password-cur" style="opacity:0.5;font-size:11px;"></span></div>
-            <input type="password" id="sec-qbit-password" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;box-sizing:border-box;" placeholder="Nouveau — laisser vide pour conserver">
+            <div class="rule-desc cfg-label">Mot de passe <span id="sec-qbit-password-cur" class="cfg-hint"></span></div>
+            <input type="password" id="sec-qbit-password" class="cfg-input" placeholder="Nouveau — laisser vide pour conserver">
           </div>
         </div>
       </div>
 
       <!-- Ultra.cc API -->
-      <div style="padding:12px 16px;">
-        <div class="rule-name" style="margin-bottom:8px;">Ultra.cc API</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="cfg-section">
+        <div class="rule-name cfg-title">Ultra.cc API</div>
+        <div class="cfg-fields-2">
           <div>
-            <div class="rule-desc" style="margin-bottom:4px;">URL</div>
-            <input type="text" id="sec-ultracc-url" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;box-sizing:border-box;" placeholder="https://user.host.usbx.me/ultra-api/total-stats">
+            <div class="rule-desc cfg-label">URL</div>
+            <input type="text" id="sec-ultracc-url" class="cfg-input" placeholder="https://user.host.usbx.me/ultra-api/total-stats">
           </div>
           <div>
-            <div class="rule-desc" style="margin-bottom:4px;">Token <span id="sec-ultracc-token-cur" style="opacity:0.5;font-size:11px;"></span></div>
-            <input type="password" id="sec-ultracc-token" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;box-sizing:border-box;" placeholder="Nouveau — laisser vide pour conserver">
+            <div class="rule-desc cfg-label">Token <span id="sec-ultracc-token-cur" class="cfg-hint"></span></div>
+            <input type="password" id="sec-ultracc-token" class="cfg-input" placeholder="Nouveau — laisser vide pour conserver">
           </div>
         </div>
       </div>
 
-      <div class="card-footer" style="justify-content:space-between;">
+      <div class="card-footer">
         <span id="secrets-msg" class="saved-msg"></span>
         <button class="btn-sm" id="btn-save-secrets">Sauvegarder les connexions</button>
       </div>
     </div>
 
     <!-- Changer le mot de passe -->
-    <div class="card" style="margin-top:1rem;">
+    <div class="card card-mt">
       <div class="section-sep">Changer le mot de passe</div>
       <div class="cleaner-row">
-        <div class="cleaner-meta" style="width:100%;">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end;">
+        <div class="cleaner-meta">
+          <div class="cfg-fields-3-end">
             <div>
-              <div class="rule-desc" style="margin-bottom:4px;">Mot de passe actuel</div>
-              <input type="password" id="pwd-current" class="rule-input-wrap" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;" placeholder="••••••••">
+              <div class="rule-desc cfg-label">Mot de passe actuel</div>
+              <input type="password" id="pwd-current" class="cfg-input" placeholder="••••••••">
             </div>
             <div>
-              <div class="rule-desc" style="margin-bottom:4px;">Nouveau mot de passe</div>
-              <input type="password" id="pwd-new" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;" placeholder="Min. 8 caractères">
+              <div class="rule-desc cfg-label">Nouveau mot de passe</div>
+              <input type="password" id="pwd-new" class="cfg-input" placeholder="Min. 8 caractères">
             </div>
             <div>
-              <div class="rule-desc" style="margin-bottom:4px;">Confirmer</div>
-              <input type="password" id="pwd-confirm" style="width:100%;padding:6px 8px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:13px;" placeholder="••••••••">
+              <div class="rule-desc cfg-label">Confirmer</div>
+              <input type="password" id="pwd-confirm" class="cfg-input" placeholder="••••••••">
             </div>
           </div>
-          <div style="border-top:0.5px solid var(--border);margin-top:12px;margin-left:-16px;margin-right:-16px;padding:12px 16px 0;display:flex;align-items:center;justify-content:space-between;">
-            <span id="pwd-msg" style="font-size:12px;color:var(--green);opacity:0;transition:opacity 0.3s;"></span>
+          <div class="pwd-footer">
+            <span id="pwd-msg"></span>
             <button class="btn-sm" id="btn-change-password">Changer le mot de passe</button>
           </div>
         </div>
@@ -311,12 +295,30 @@
   <!-- Tab: Historique -->
   <div id="sec-historique" class="section">
     <div class="card">
-      <div id="history-content" style="padding:0;">
-        <div style="padding:16px;font-size:13px;color:var(--text2);">Chargement…</div>
+      <div id="history-content">
+        <div class="hist-loading">Chargement…</div>
       </div>
     </div>
   </div>
 
+</div>
+
+<div id="chart-modal" class="chart-modal-overlay">
+  <div class="chart-modal-box">
+    <div class="chart-modal-header">
+      <span id="chart-modal-title" class="chart-modal-torrent-name"></span>
+      <div class="chart-range-btns">
+        <button class="btn-range" data-range="1h">1h</button>
+        <button class="btn-range" data-range="6h">6h</button>
+        <button class="btn-range" data-range="24h">24h</button>
+        <button class="btn-range" data-range="7d">7j</button>
+        <button class="btn-range" data-range="30d">30j</button>
+        <button class="btn-range active" data-range="all">Tout</button>
+      </div>
+      <button class="btn-sm" id="chart-modal-close">✕</button>
+    </div>
+    <div class="chart-modal-canvas-wrap"><canvas id="chart-modal-canvas"></canvas></div>
+  </div>
 </div>
 
 <div id="toast" class="toast"></div>
