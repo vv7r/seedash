@@ -11,8 +11,9 @@ Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS sépar
 - **`public/style.css`** — tout le CSS ; variables dans `:root` / `[data-theme="dark"]`
 - **`public/app.js`** — tout le JS frontend ; zéro handler inline, event delegation
 - **`public/theme-init.js`** — 3 lignes bloquantes en `<head>` pour restaurer le thème sans flash
-- **`config.json`** — config persistante, lue/écrite par le serveur à chaud
-- **`ecosystem.config.js`** — config PM2, injecte `JWT_SECRET` comme variable d'env (ne pas committer)
+- **`config.json`** — config persistante, lue/écrite par le serveur à chaud (versionné dans git)
+- **`connections.json`** — secrets chiffrés + bloc auth (jwt_secret, password_hash) — ignoré par git
+- **`ecosystem.config.js`** — config PM2, injecte `JWT_SECRET` comme variable d'env (ignoré par git)
 
 ## Commandes
 
@@ -26,7 +27,7 @@ pm2 reload seedash     # rechargement gracieux en production
 
 Lue au démarrage via `fs.readFileSync`. Sauvegardée en temps réel avec `saveCfg()` à chaque modification via l'API. Relit au moment de chaque `runClean()` dans cleaner.js.
 
-Le bloc `auth` (jwt_secret, password_hash) est généré automatiquement par `initAuth()` au premier démarrage si vide.
+Le bloc `auth` (jwt_secret, password_hash) vit dans `connections.json` et est généré automatiquement par `initAuth()` au premier démarrage si absent.
 
 ### Modèle `cfg.rules` / `cfg.rules_on`
 
@@ -44,10 +45,27 @@ Ce modèle permet de modifier la valeur sans perdre l'état du toggle, et invers
 - `age_min_hours` / `age_max_hours` — basées sur `t.added_on` (date d'ajout), **pas** `t.seeding_time`
 - `ratio_min` / `ratio_max` — ratio upload/download
 
+### Logique des conditions auto clean
+
+Les conditions minimales fonctionnent en **ET** : toutes les règles actives (`ratio_min`, `age_min_hours`, `upload_min_mb`) doivent être vraies simultanément. Si aucune n'est active, rien n'est supprimé.
+
+Les seuils maximaux (`ratio_max`, `age_max_hours`) sont **indépendants** (OU) : ils forcent la suppression dès qu'ils sont atteints.
+
+#### Condition `upload_min_mb`
+
+- Échantillons collectés toutes les 5 minutes dans `logs/upload-history.json` (`[timestamp_s, cumul_bytes]` par hash)
+- La fenêtre est **stricte** : l'historique doit couvrir toute la durée — `points[0][0] <= now - upload_window_hours`
+- Si l'historique ne couvre pas encore la fenêtre (torrent ancien dont le suivi a démarré récemment, ou torrent trop jeune), la condition est considérée non éligible (`false`) — pas de suppression
+- Exige ≥ 2 points dans la fenêtre pour calculer le delta ; pas de fallback sur l'historique total
+
+#### `DEFAULT_GRAB_RULES_ON` / `DEFAULT_CLEAN_RULES_ON` dans `initConfig()`
+
+Ces constantes définissent l'état initial des toggles côté serveur, **aligné sur les `defOn` du frontend** (`RULE_DEFS` dans `app.js`). Ne pas les modifier sans mettre à jour les deux côtés simultanément — un désalignement provoque des règles silencieusement ignorées.
+
 ## Auth
 
 - JWT signé avec la clé résolue par `getJwtSecret()` : `process.env.JWT_SECRET || cfg.auth.jwt_secret`
-- `JWT_SECRET` en variable d'env PM2 (`ecosystem.config.js`) — prioritaire sur config.json
+- `JWT_SECRET` en variable d'env PM2 (`ecosystem.config.js`) — prioritaire sur `connections.json`
 - Toutes les routes API sauf `POST /api/login` sont protégées par `requireAuth`
 - Brute-force : 5 tentatives max → blocage 15 min par IP (in-memory Map, nettoyée toutes les 5min)
 - Mot de passe par défaut `changeme` défini dans `initAuth()` — à changer via l'interface
@@ -55,7 +73,7 @@ Ce modèle permet de modifier la valeur sans perdre l'état du toggle, et invers
 ## Secrets
 
 Chiffrés AES-256-GCM sur disque via `crypto-config.js`. Clé de chiffrement = SHA-256 du JWT secret.
-Chemins chiffrés : `c411.apikey`, `qbittorrent.password`, `ultracc_api.token`.
+Chemins chiffrés dans `connections.json` : `c411.apikey`, `qbittorrent.username`, `qbittorrent.password`, `ultracc_api.token`.
 En mémoire (`cfg`), les valeurs restent en clair après `decryptSecrets()`.
 
 ## Noms C411 dans les torrents actifs
@@ -127,6 +145,13 @@ Pattern event delegation à suivre pour les éléments dynamiques :
 - `selectedGrab` : `Map<url, {name, infohash}>` (pas un Set) pour transmettre l'infohash au grab sélection multiple
 - Top leechers : auto-refresh visuel (appel `loadTop()`), le grab réel se fait côté serveur
 - Connexions LEDs : `setInterval` toutes les 30s — silencieux si précédent état était OK (pas de flash orange)
+
+### Badge "prêt à supprimer" (torrents actifs)
+
+`actifsCalc(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn)` calcule `canDel` en miroir de `cleaner.js` :
+- `canDel = cleanerEnabled && anyOn && ratioOk && timeOk && uploadMet` — logique ET sur les conditions actives
+- `cleanerEnabled` : variable module-level mise à jour par `loadCleanerStatus()` — le badge n'apparaît jamais si l'auto clean est désactivé
+- `upload_condition` (booléen) est calculé côté serveur dans `GET /api/torrents` et transmis avec chaque torrent ; l'historique d'upload n'est pas accessible côté client
 
 ### DOM — deux modes de mise à jour (loadActifs)
 

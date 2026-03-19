@@ -295,20 +295,25 @@ function appendHistory(type, count, source, names = []) {
  */
 function initConfig() {
   let changed = false;
+  // rules_on par défaut alignés sur defOn du client (app.js RULE_DEFS) :
+  // absent de rules_on = traité comme true côté serveur → doit être explicitement false pour les règles opt-in
+  const DEFAULT_GRAB_RULES_ON  = { grab_limit_per_day: true, size_max_gb: true, active_max: false, min_leechers: false, min_seeders: false };
   if (!cfg.auto_grab) {
     cfg.auto_grab = { enabled: false, interval_minutes: 15, last_run: null, last_grab_count: 0,
-      rules: { grab_limit_per_day: 20, size_max_gb: 100, active_max: 0, min_leechers: 0, min_seeders: 0 }, rules_on: {} };
+      rules: { grab_limit_per_day: 20, size_max_gb: 100, active_max: 15, min_leechers: 0, min_seeders: 0 },
+      rules_on: { ...DEFAULT_GRAB_RULES_ON } };
     changed = true;
   }
-  if (!cfg.auto_grab.rules)    { cfg.auto_grab.rules    = { grab_limit_per_day: 20, size_max_gb: 100, active_max: 0, min_leechers: 0, min_seeders: 0 }; changed = true; }
-  if (!cfg.auto_grab.rules_on) { cfg.auto_grab.rules_on = {}; changed = true; }
+  if (!cfg.auto_grab.rules)    { cfg.auto_grab.rules    = { grab_limit_per_day: 20, size_max_gb: 100, active_max: 15, min_leechers: 0, min_seeders: 0 }; changed = true; }
+  if (!cfg.auto_grab.rules_on) { cfg.auto_grab.rules_on = { ...DEFAULT_GRAB_RULES_ON }; changed = true; }
+  const DEFAULT_CLEAN_RULES_ON = { ratio_min: true, ratio_max: false, age_min_hours: true, age_max_hours: false, upload_min_mb: true };
   if (!cfg.auto_clean) {
     cfg.auto_clean = { enabled: false, interval_hours: 1,
-      rules: { ratio_min: 1.0, age_min_hours: 48 }, rules_on: {} };
+      rules: { ratio_min: 1.0, age_min_hours: 48 }, rules_on: { ...DEFAULT_CLEAN_RULES_ON } };
     changed = true;
   }
   if (!cfg.auto_clean.rules)    { cfg.auto_clean.rules    = { ratio_min: 1.0, age_min_hours: 48 }; changed = true; }
-  if (!cfg.auto_clean.rules_on) { cfg.auto_clean.rules_on = {}; changed = true; }
+  if (!cfg.auto_clean.rules_on) { cfg.auto_clean.rules_on = { ...DEFAULT_CLEAN_RULES_ON }; changed = true; }
   if (changed) {
     saveCfg();
     console.log('[config] Clés manquantes initialisées et sauvegardées');
@@ -694,22 +699,49 @@ app.get(`${cfg.baseurl}/api/torrents`, requireAuth, async (req, res) => {
       }
     }
     const data = await qbitRequest('get', '/torrents/info');
-    const list = data.map(t => ({
-      hash:          t.hash,
-      name:          nameMap[t.hash.toLowerCase()] || topByHash[t.hash.toLowerCase()] || t.name,
-      size:          t.size,
-      progress:      t.progress,
-      state:         t.state,
-      ratio:         t.ratio,
-      seeding_time:  t.seeding_time,   // secondes
-      num_leechs:    t.num_leechs,
-      num_seeds:     t.num_seeds,
-      dlspeed:       t.dlspeed,
-      upspeed:       t.upspeed,
-      added_on:      t.added_on,
-      completion_on: t.completion_on,
-      category:      categoryMap[t.hash.toLowerCase()] || topCatByHash[t.hash.toLowerCase()] || ''
-    }));
+    // Pré-calcul de la condition upload_min_mb (miroir de uploadCondition dans cleaner.js)
+    const cleanRules  = cfg.auto_clean?.rules    || {};
+    const cleanOn     = cfg.auto_clean?.rules_on || {};
+    const isCleanOn   = (k) => cleanOn[k] !== false;
+    const nowSec      = Math.floor(Date.now() / 1000);
+    const ageMinSec   = (cleanRules.age_min_hours || 48) * 3600;
+    const uploadMinMb = isCleanOn('upload_min_mb') && cleanRules.upload_min_mb > 0 ? cleanRules.upload_min_mb : null;
+    const uploadWinSec = (cleanRules.upload_window_hours || 48) * 3600;
+    const list = data.map(t => {
+      const hash = t.hash.toLowerCase();
+      // Condition upload : torrent "mort" (upload insuffisant sur la fenêtre glissante)
+      let upload_condition = false;
+      if (uploadMinMb !== null
+        && (!isCleanOn('age_min_hours') || (nowSec - t.added_on) >= ageMinSec)
+        && (!isCleanOn('ratio_min')     || t.ratio >= cleanRules.ratio_min)) {
+        const points   = uploadHistory[hash] || [];
+        const winStart = nowSec - uploadWinSec;
+        const inWin    = points.filter(([ts]) => ts >= winStart);
+        // L'historique doit couvrir toute la fenêtre (premier point antérieur à winStart)
+        const historyCoversWindow = points.length > 0 && points[0][0] <= winStart;
+        if (historyCoversWindow && inWin.length >= 2) {
+          const delta = inWin[inWin.length - 1][1] - inWin[0][1];
+          if (delta >= 0 && delta / 1e6 < uploadMinMb) upload_condition = true;
+        }
+      }
+      return {
+        hash:             t.hash,
+        name:             nameMap[hash] || topByHash[hash] || t.name,
+        size:             t.size,
+        progress:         t.progress,
+        state:            t.state,
+        ratio:            t.ratio,
+        seeding_time:     t.seeding_time,
+        num_leechs:       t.num_leechs,
+        num_seeds:        t.num_seeds,
+        dlspeed:          t.dlspeed,
+        upspeed:          t.upspeed,
+        added_on:         t.added_on,
+        completion_on:    t.completion_on,
+        category:         categoryMap[hash] || topCatByHash[hash] || '',
+        upload_condition,
+      };
+    });
     res.json({ torrents: list });
   } catch (e) {
     console.error('[qBit]', e.message);
@@ -1214,7 +1246,7 @@ app.post(`${cfg.baseurl}/api/config/secrets`, requireAuth, (req, res) => {
 
 // GET /api/auto-refresh — retourne l'état et l'intervalle de l'auto-grab
 app.get(`${cfg.baseurl}/api/auto-refresh`, requireAuth, (req, res) => {
-  res.json({ enabled: cfg.auto_grab.enabled, interval_minutes: cfg.auto_grab.interval_minutes, last_run: autoGrabStatus.last_run });
+  res.json({ enabled: cfg.auto_grab.enabled, interval_minutes: cfg.auto_grab.interval_minutes, last_run: autoGrabStatus.last_run, last_grab_count: autoGrabStatus.last_grab_count });
 });
 
 // POST /api/auto-refresh — met à jour l'intervalle et l'état de l'auto-grab, recrée le timer serveur

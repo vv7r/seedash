@@ -111,6 +111,7 @@ function filterTopItems(items) {
     return true;
   });
 }
+let cleanerEnabled = true; // mis à jour par loadCleanerStatus
 let autoRefreshInterval = null;
 let autoRefreshNextAt      = null;
 let autoRefreshCountdown    = null;
@@ -578,7 +579,7 @@ function setActifsSort(key) {
  *  @param {Array}  torrents - Torrents à trier
  *  @param {number} ratioMin - Seuil de ratio minimum (pour calcul du statut)
  *  @param {number} seedMin  - Âge minimum en secondes (pour calcul du statut) */
-function sortActifsData(torrents, ratioMin, seedMin) {
+function sortActifsData(torrents, ratioMin, seedMin, ratioOn, ageOn, uploadOn) {
   if (!actifsSortKey) return torrents;
   return [...torrents].sort((a, b) => {
     let va, vb;
@@ -590,8 +591,8 @@ function sortActifsData(torrents, ratioMin, seedMin) {
       case 'dlspeed': va = a.dlspeed;   vb = b.dlspeed;   break;
       case 'upspeed': va = a.upspeed;   vb = b.upspeed;   break;
       case 'state':   va = a.state;     vb = b.state;     break;
-      case 'status':  va = actifsCalc(a, ratioMin, seedMin).canDel ? 1 : 0;
-                      vb = actifsCalc(b, ratioMin, seedMin).canDel ? 1 : 0; break;
+      case 'status':  va = actifsCalc(a, ratioMin, seedMin, ratioOn, ageOn, uploadOn).canDel ? 1 : 0;
+                      vb = actifsCalc(b, ratioMin, seedMin, ratioOn, ageOn, uploadOn).canDel ? 1 : 0; break;
       default: return 0;
     }
     if (va < vb) return -actifsSortDir;
@@ -667,16 +668,24 @@ function actifsStateBadge(t) {
 
 /** Calcule les indicateurs de suppression d'un torrent : ratio atteint, âge suffisant,
  *  pourcentage vers le ratio cible et classe CSS pour la barre de progression.
- *  @param {Object} t        - Objet torrent (ratio, added_on)
- *  @param {number} ratioMin - Seuil de ratio minimum
- *  @param {number} seedMin  - Âge minimum requis en secondes */
-function actifsCalc(t, ratioMin, seedMin) {
-  const ratioOk    = t.ratio >= ratioMin;
-  const age        = Math.floor(Date.now() / 1000) - t.added_on;
-  const timeOk     = age >= seedMin;
-  const canDel     = ratioOk && timeOk;
-  const pct        = Math.min(100, Math.round((t.ratio / ratioMin) * 100));
-  const ratioState = ratioOk ? 'ok' : (pct > 60 ? 'warn' : 'low');
+ *  Toutes les conditions actives doivent être vraies simultanément (logique AND).
+ *  @param {Object}  t        - Objet torrent (ratio, added_on, upload_condition)
+ *  @param {number}  ratioMin - Seuil de ratio minimum
+ *  @param {number}  seedMin  - Âge minimum requis en secondes
+ *  @param {boolean} ratioOn  - Toggle ratio_min actif
+ *  @param {boolean} ageOn    - Toggle age_min_hours actif
+ *  @param {boolean} uploadOn - Toggle upload_min_mb actif */
+function actifsCalc(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn) {
+  const ratioOk   = !ratioOn  || t.ratio >= ratioMin;
+  const age       = Math.floor(Date.now() / 1000) - t.added_on;
+  const timeOk    = !ageOn    || age >= seedMin;
+  const uploadMet = !uploadOn || !!t.upload_condition;
+  // Au moins une condition doit être active, et toutes les conditions actives doivent être satisfaites
+  const anyOn  = ratioOn || ageOn || uploadOn;
+  const canDel = cleanerEnabled && anyOn && ratioOk && timeOk && uploadMet;
+  const displayMin = ratioOn && ratioMin > 0 ? ratioMin : 1.0;
+  const pct        = Math.min(100, Math.round((t.ratio / displayMin) * 100));
+  const ratioState = t.ratio >= displayMin ? 'ok' : (pct > 60 ? 'warn' : 'low');
   return { ratioOk, timeOk, canDel, pct, ratioState };
 }
 
@@ -685,8 +694,8 @@ function actifsCalc(t, ratioMin, seedMin) {
  *  @param {Object} t        - Objet torrent complet
  *  @param {number} ratioMin - Seuil de ratio minimum
  *  @param {number} seedMin  - Âge minimum requis en secondes */
-function actifsRowHTML(t, ratioMin, seedMin) {
-  const { timeOk, canDel, pct, ratioState } = actifsCalc(t, ratioMin, seedMin);
+function actifsRowHTML(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn) {
+  const { timeOk, canDel, pct, ratioState } = actifsCalc(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn);
   torrentDataMap.set(t.hash, t.name);
   return `<tr data-hash="${t.hash}">
     <td class="cell-status">${actifsStateBadge(t)}</td>
@@ -710,8 +719,8 @@ function actifsRowHTML(t, ratioMin, seedMin) {
  *  @param {Object}      t       - Données torrent mises à jour
  *  @param {number}      ratioMin
  *  @param {number}      seedMin */
-function actifsUpdateRow(row, t, ratioMin, seedMin) {
-  const { timeOk, canDel, pct, ratioState } = actifsCalc(t, ratioMin, seedMin);
+function actifsUpdateRow(row, t, ratioMin, seedMin, ratioOn, ageOn, uploadOn) {
+  const { timeOk, canDel, pct, ratioState } = actifsCalc(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn);
   row.querySelector('.cell-status').innerHTML = actifsStateBadge(t);
   const bar = row.querySelector('.cell-ratio-bar');
   bar.style.width = pct + '%';
@@ -744,6 +753,9 @@ async function loadActifs() {
     ]);
     const torrents = tr.torrents || [];
     updateQbitStats(torrents);
+    const ratioOn  = rr._on?.ratio_min     !== false;
+    const ageOn    = rr._on?.age_min_hours !== false;
+    const uploadOn = rr._on?.upload_min_mb !== false;
     const ratioMin = rr.ratio_min || 1.0;
     const seedMin  = (rr.age_min_hours || 48) * 3600;
     renderActifsHeaders();
@@ -761,7 +773,7 @@ async function loadActifs() {
     if (catCurrent) catSel.value = catCurrent;
     const activeCat = catSel.value;
     const filtered = activeCat ? torrents.filter(t => t.category === activeCat) : torrents;
-    const sorted = sortActifsData(filtered, ratioMin, seedMin);
+    const sorted = sortActifsData(filtered, ratioMin, seedMin, ratioOn, ageOn, uploadOn);
     const newHashes = sorted.map(t => t.hash).join(',') + '|' + actifsSortKey + actifsSortDir + '|' + activeCat;
     if (newHashes !== actifsHashes) {
       actifsHashes = newHashes;
@@ -771,7 +783,7 @@ async function loadActifs() {
         const existing = tbody.querySelector(`.chart-row[data-hash="${hash}"]`);
         if (existing) savedChartRows.set(hash, existing);
       }
-      tbody.innerHTML = sorted.map(t => actifsRowHTML(t, ratioMin, seedMin)).join('');
+      tbody.innerHTML = sorted.map(t => actifsRowHTML(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn)).join('');
       tbody.querySelectorAll('.cell-ratio-bar[data-pct]').forEach(bar => { bar.style.width = bar.dataset.pct + '%'; });
       for (const hash of openChartHashes) {
         const dataRow = tbody.querySelector(`tr[data-hash="${hash}"]:not(.chart-row)`);
@@ -791,7 +803,7 @@ async function loadActifs() {
     } else {
       for (const t of sorted) {
         const row = tbody.querySelector(`tr[data-hash="${t.hash}"]`);
-        if (row) actifsUpdateRow(row, t, ratioMin, seedMin);
+        if (row) actifsUpdateRow(row, t, ratioMin, seedMin, ratioOn, ageOn, uploadOn);
       }
     }
   } catch (e) {
@@ -982,6 +994,7 @@ function applyCleanerCountdown(lastRun, intervalHours, enabled) {
 async function loadCleanerStatus() {
   try {
     const d = await fetch(BASE + '/api/cleaner/status', { credentials: 'include' }).then(r => r.json());
+    cleanerEnabled = !!d.enabled;
     document.getElementById('cleaner-enabled').checked   = !!d.enabled;
     document.getElementById('cleaner-interval').value    = d.interval_hours || 1;
     document.getElementById('cleaner-interval').disabled = !d.enabled;
@@ -1727,7 +1740,7 @@ async function renderUploadChart(hash, canvas) {
     canvas._hoverAC = ac;
     const cutoff = (allPoints.length ? allPoints[allPoints.length-1][0] : 0) - 86400;
     const windowed = allPoints.filter(([t]) => t >= cutoff);
-    const state = drawChartOnCanvas(canvas, downsamplePoints(windowed.length >= 2 ? windowed : allPoints, 600), 150);
+    const state = drawChartOnCanvas(canvas, downsamplePoints(windowed.length >= 2 ? windowed : allPoints, 600), 150, '24h');
     attachChartHover(canvas, state, ac.signal);
   } catch {
     container.innerHTML = '<div class="chart-empty">Erreur chargement</div>';
