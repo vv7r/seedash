@@ -137,33 +137,36 @@ async function runClean(source = 'auto') {
     const toDelete = torrents.filter(t => {
       const age = now - t.added_on;
 
-      // normalCondition : supprime si TOUTES les règles actives (ratio_min et/ou age_min_hours)
-      // sont satisfaites. Si aucune des deux n'est active, la condition est false (rien à supprimer).
-      const ratioCheck = isOn('ratio_min') ? t.ratio >= ratio_min : true;
-      const ageCheck   = isOn('age_min_hours') ? age >= ageMin : true;
-      const normalCondition = (isOn('ratio_min') || isOn('age_min_hours')) && ratioCheck && ageCheck;
+      // Conditions de base (toutes doivent être vraies simultanément si actives)
+      const ratioCheck  = isOn('ratio_min')     ? t.ratio >= ratio_min : true;
+      const ageCheck    = isOn('age_min_hours') ? age >= ageMin        : true;
+
+      // uploadCheck : faible upload sur la fenêtre glissante
+      let uploadCheck = true; // neutre si règle désactivée
+      if (uploadMinMb !== null) {
+        const points   = uploadHistory[t.hash.toLowerCase()] || [];
+        const winStart = now - uploadWinSec;
+        const inWin    = points.filter(([ts]) => ts >= winStart);
+        // L'historique doit couvrir toute la fenêtre (premier point antérieur à winStart)
+        // et contenir au moins 2 mesures dans la fenêtre
+        const historyCoversWindow = points.length > 0 && points[0][0] <= winStart;
+        uploadCheck = (historyCoversWindow && inWin.length >= 2)
+          ? (inWin[inWin.length - 1][1] - inWin[0][1]) / 1e6 < uploadMinMb
+          : false;
+      }
+
+      // normalCondition : toutes les conditions actives (ratio_min, age_min_hours, upload_min_mb)
+      // doivent être satisfaites simultanément. Si aucune n'est active, rien à supprimer.
+      const anyMinOn = isOn('ratio_min') || isOn('age_min_hours') || uploadMinMb !== null;
+      const normalCondition = anyMinOn && ratioCheck && ageCheck && uploadCheck;
 
       // maxCondition / ratioMaxCondition : seuils maximaux déclenchant la suppression
       // indépendamment des autres règles (utile pour forcer la rotation des vieux torrents).
-      const maxCondition      = ageMax     !== null && age >= ageMax;
-      const ratioMaxCondition = ratioMax   !== null && t.ratio >= ratioMax;
+      const maxCondition      = ageMax   !== null && age >= ageMax;
+      const ratioMaxCondition = ratioMax !== null && t.ratio >= ratioMax;
 
-      // uploadCondition : supprime un torrent "mort" (faible upload sur la fenêtre glissante)
-      // uniquement si les conditions minimales d'âge et de ratio sont également satisfaites.
-      let uploadCondition = false;
-      if (uploadMinMb !== null && (!isOn('age_min_hours') || age >= ageMin) && (!isOn('ratio_min') || t.ratio >= ratio_min)) {
-        const points = uploadHistory[t.hash.toLowerCase()] || [];
-        if (points.length >= 2) {
-          const winStart = now - uploadWinSec;
-          const inWin    = points.filter(([ts]) => ts >= winStart);
-          // Si assez de points dans la fenêtre, on les utilise ; sinon on prend tout l'historique
-          const src      = inWin.length >= 2 ? inWin : points;
-          const delta    = src[src.length - 1][1] - src[0][1]; // différence d'octets uploadés
-          if (delta >= 0 && delta / 1e6 < uploadMinMb) uploadCondition = true;
-        }
-      }
       // Un torrent est supprimé si au moins une condition le déclenche
-      return normalCondition || maxCondition || ratioMaxCondition || uploadCondition;
+      return normalCondition || maxCondition || ratioMaxCondition;
     });
 
     for (const t of toDelete) {

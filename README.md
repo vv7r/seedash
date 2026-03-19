@@ -113,9 +113,9 @@ app-ports free     # suggère un port libre
 
 Notez le port choisi (ex : `44962`).
 
-### 3. Préparer `config.json`
+### 3. Configurer `config.json`
 
-Éditez `config.json` avec le port choisi et l'URL de base souhaitée :
+`config.json` est inclus dans le dépôt avec des valeurs par défaut. Éditez-le pour renseigner le port choisi et l'URL de base :
 
 ```json
 {
@@ -124,7 +124,7 @@ Notez le port choisi (ex : `44962`).
 }
 ```
 
-Le reste du fichier (`auto_grab`, `auto_clean`) sera initialisé automatiquement avec des valeurs par défaut au premier démarrage.
+Les blocs `auto_grab` et `auto_clean` sont déjà présents avec des valeurs par défaut raisonnables — vous pouvez les ajuster avant le premier démarrage ou via l'interface ensuite.
 
 ### 4. Premier démarrage pour générer le JWT secret
 
@@ -309,11 +309,17 @@ pm2 delete seedash     # suppression du processus PM2
 | Clé | Description |
 |-----|-------------|
 | `ratio_min` | Ratio minimum atteint avant suppression possible |
-| `ratio_max` | Ratio maximum — suppression forcée au-delà |
-| `age_min_hours` | Âge minimum (heures depuis l'ajout) avant suppression possible |
-| `age_max_hours` | Âge maximum — suppression forcée au-delà |
-| `upload_min_mb` | Upload minimum requis (en Mo) sur `upload_window_hours` heures |
-| `upload_window_hours` | Fenêtre temporelle pour la règle `upload_min_mb` |
+| `ratio_max` | Ratio maximum — suppression forcée au-delà (indépendant) |
+| `age_min_hours` | Âge minimum (heures depuis `added_on`) avant suppression possible |
+| `age_max_hours` | Âge maximum — suppression forcée au-delà (indépendant) |
+| `upload_min_mb` | Upload total requis (en Mo) sur la fenêtre `upload_window_hours` |
+| `upload_window_hours` | Durée de la fenêtre glissante pour `upload_min_mb` |
+
+**Logique des conditions :**
+
+- `ratio_min`, `age_min_hours` et `upload_min_mb` fonctionnent en **ET** : toutes les conditions actives doivent être vraies simultanément pour déclencher une suppression.
+- `ratio_max` et `age_max_hours` sont des seuils **indépendants** (OU) : ils forcent la suppression dès qu'ils sont atteints, quelle que soit l'état des autres conditions.
+- La condition `upload_min_mb` exige que l'historique d'upload couvre effectivement toute la fenêtre (premier point enregistré antérieur à `now - upload_window_hours`). Les torrents dont le suivi a démarré récemment ne sont pas éligibles tant que cette couverture n'est pas atteinte.
 
 ### `connections.json` — secrets et connexions
 
@@ -344,7 +350,7 @@ Généré automatiquement au premier démarrage. Les champs `apikey`, `username`
 }
 ```
 
-> `connections.json` est dans `.gitignore` — ne jamais commiter ce fichier.
+> `connections.json` est dans `.gitignore` — ne jamais committer ce fichier (contient les secrets chiffrés et le JWT secret).
 
 ---
 
@@ -469,8 +475,8 @@ seedash/
 ├── resolve-meta.js        — script autonome de résolution des métadonnées C411
 ├── crypto-config.js       — chiffrement/déchiffrement AES-256-GCM
 ├── ecosystem.config.js    — config PM2 avec JWT_SECRET (ne pas committer)
-├── config.json            — config générale : port, baseurl, auto_grab, auto_clean
-├── connections.json       — secrets chiffrés : auth, c411, qbittorrent, ultracc_api (ne pas committer)
+├── config.json            — config générale : port, baseurl, auto_grab, auto_clean (versionné)
+├── connections.json       — secrets chiffrés : auth, c411, qbittorrent, ultracc_api (ignoré git)
 ├── package.json
 ├── .gitignore
 ├── public/
