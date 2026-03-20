@@ -281,7 +281,7 @@ Généré automatiquement au premier démarrage. Les champs `apikey`, `username`
 
 ## API
 
-Toutes les routes (sauf `/api/login`) nécessitent un header `Authorization: Bearer <token>` ou un cookie `token`.
+Toutes les routes (sauf `/api/login` et `/api/setup`) nécessitent un header `Authorization: Bearer <token>` ou un cookie httpOnly `seedash_token`.
 
 ### Authentification
 
@@ -401,7 +401,7 @@ seedash/
 ├── cleaner.js             — logique de nettoyage + timer setInterval
 ├── resolve-meta.js        — script autonome : résout les noms/catégories C411 manquants (node resolve-meta.js)
 ├── crypto-config.js       — chiffrement/déchiffrement AES-256-GCM
-├── ecosystem.config.js    — config PM2 avec JWT_SECRET (ne pas committer)
+├── ecosystem.config.js    — config PM2 minimaliste (généré au premier démarrage, ne pas committer)
 ├── config.json            — config générale : port, baseurl, auto_grab, auto_clean (versionné)
 ├── connections.json       — secrets chiffrés : auth, c411, qbittorrent, ultracc_api (ignoré git)
 ├── package.json
