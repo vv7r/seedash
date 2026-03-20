@@ -126,78 +126,7 @@ Notez le port choisi (ex : `44962`).
 
 Les blocs `auto_grab` et `auto_clean` sont déjà présents avec des valeurs par défaut raisonnables — vous pouvez les ajuster avant le premier démarrage ou via l'interface ensuite.
 
-### 4. Premier démarrage pour générer le JWT secret
-
-```bash
-node server.js
-# Attendez le message "[server] SeeDash en écoute sur le port..."
-# Ctrl+C pour arrêter
-```
-
-Ce premier lancement génère automatiquement `connections.json` avec :
-- `jwt_secret` — clé de signature JWT aléatoire 64 octets
-- `password_hash` — hash bcrypt du mot de passe par défaut `changeme`
-
-### 5. Configurer `ecosystem.config.js`
-
-Ouvrez `connections.json` et copiez la valeur de `auth.jwt_secret` :
-
-```bash
-cat connections.json | grep jwt_secret
-```
-
-Ouvrez `ecosystem.config.js` et collez cette valeur dans `JWT_SECRET` :
-
-```js
-module.exports = {
-  apps: [{
-    name: 'seedash',
-    script: 'server.js',
-    watch: false,
-    env: {
-      NODE_ENV: 'production',
-      JWT_SECRET: 'COLLER_ICI_LA_VALEUR_DE_jwt_secret'
-    }
-  }]
-};
-```
-
-> `ecosystem.config.js` est dans `.gitignore` — ne jamais commiter ce fichier.
-
-### 6. Configurer `connections.json`
-
-Éditez `connections.json` pour renseigner vos identifiants **en clair** — le serveur les chiffre automatiquement au démarrage :
-
-```json
-{
-  "auth": {
-    "username": "admin",
-    "password_hash": "...",
-    "token_expiry": "24h",
-    "issued_after": 0,
-    "jwt_secret": "..."
-  },
-  "c411": {
-    "apikey": "VOTRE_CLE_API_C411",
-    "url": "https://c411.org/api/torznab"
-  },
-  "qbittorrent": {
-    "url": "http://127.0.0.1:PORT_QBITTORRENT",
-    "username": "VOTRE_USER_QBITTORRENT",
-    "password": "VOTRE_MOT_DE_PASSE_QBITTORRENT"
-  },
-  "ultracc_api": {
-    "url": "https://USER.HOST.usbx.me/ultra-api/total-stats",
-    "token": "VOTRE_TOKEN_ULTRACC"
-  }
-}
-```
-
-- **Port qBittorrent** : visible dans le panneau Ultra.cc → Applications → qBittorrent
-- **Clé API C411** : dans votre profil C411 → API Key
-- **Token Ultra.cc** : dans le panneau Ultra.cc → API / Token
-
-### 7. Démarrer via PM2
+### 4. Démarrer via PM2
 
 ```bash
 pm2 start ecosystem.config.js
@@ -211,7 +140,18 @@ pm2 status
 pm2 logs seedash --lines 20 --nostream
 ```
 
-### 8. Configurer le proxy Nginx
+### 5. Page de premier démarrage
+
+Ouvrez l'application dans votre navigateur. Une page de configuration s'affiche automatiquement au premier lancement :
+
+- **Nom d'utilisateur** — 1 à 32 caractères alphanumériques (`. _ -` autorisés)
+- **Mot de passe** — 8 à 72 caractères
+
+Une fois validé, vous êtes connecté automatiquement. `ecosystem.config.js` est généré si absent.
+
+Renseignez ensuite vos secrets dans **Configuration → Connexions & API** (clé C411, qBittorrent, Ultra.cc).
+
+### 6. Configurer le proxy Nginx
 
 Sur Ultra.cc, le proxy Nginx est géré via le panneau d'administration. Créez un proxy vers :
 
@@ -324,34 +264,26 @@ pm2 delete seedash     # suppression du processus PM2
 
 ### `connections.json` — secrets et connexions
 
-Généré automatiquement au premier démarrage. Les champs `apikey`, `username`, `password` et `token` sont chiffrés AES-256-GCM automatiquement par le serveur (préfixe `enc:`).
+Généré automatiquement au premier démarrage. Les champs `apikey`, `username`, `password` et `token` sont chiffrés AES-256-GCM automatiquement par le serveur (préfixe `enc:`). Toujours écrit avec les permissions `600` (lecture/écriture propriétaire uniquement).
 
 ```json
 {
   "auth": {
-    "username": "admin",
+    "username": "votre_pseudo",
     "password_hash": "$2b$12$...",
     "token_expiry": "24h",
     "issued_after": 0,
-    "jwt_secret": "..."
+    "jwt_secret": "...",
+    "setup_completed": true
   },
-  "c411": {
-    "apikey": "enc:...",
-    "url": "https://c411.org/api/torznab"
-  },
-  "qbittorrent": {
-    "url": "http://127.0.0.1:PORT",
-    "username": "enc:...",
-    "password": "enc:..."
-  },
-  "ultracc_api": {
-    "url": "https://USER.HOST.usbx.me/ultra-api/total-stats",
-    "token": "enc:..."
-  }
+  "c411": { "apikey": "enc:...", "url": "https://c411.org/api/torznab" },
+  "qbittorrent": { "url": "http://...", "username": "enc:...", "password": "enc:..." },
+  "ultracc_api": { "url": "https://...", "token": "enc:..." }
 }
 ```
 
-> `connections.json` est dans `.gitignore` — ne jamais committer ce fichier (contient les secrets chiffrés et le JWT secret).
+> `connections.json` est dans `.gitignore` — ne jamais committer ce fichier.
+> Le `jwt_secret` est la clé maître : il signe les tokens JWT ET dérive la clé AES de chiffrement. En cas de rotation, les tokens existants sont invalidés et les secrets chiffrés doivent être re-saisis via l'interface.
 
 ---
 
@@ -363,9 +295,11 @@ Toutes les routes (sauf `/api/login`) nécessitent un header `Authorization: Bea
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| `POST` | `/api/login` | `{username, password}` → `{token}` JWT |
+| `GET` | `/api/setup/status` | `{ setupComplete: bool }` — détecte le premier démarrage |
+| `POST` | `/api/setup` | `{username, password}` → crée le compte + génère `ecosystem.config.js` |
+| `POST` | `/api/login` | `{username, password}` → cookie JWT httpOnly |
 | `POST` | `/api/logout` | Invalide le cookie de session |
-| `POST` | `/api/change-password` | `{current, newPassword}` → change le mot de passe |
+| `POST` | `/api/change-password` | `{current_password, new_password}` → change le mot de passe |
 
 ### Stats et monitoring
 
@@ -513,15 +447,14 @@ seedash/
 
 ## Sécurité
 
-- **JWT** signé avec une clé 64 octets générée aléatoirement au premier démarrage
+- **Premier démarrage** : page de setup obligatoire (username + password choisis librement), pas de mot de passe par défaut
+- **JWT** signé avec `jwt_secret` (64 octets, généré aléatoirement, stocké uniquement dans `connections.json`)
 - **Brute-force** : 5 tentatives de login max → blocage IP 15 minutes
-- **AES-256-GCM** : tous les secrets (API keys, mots de passe) chiffrés sur disque avec la clé dérivée du JWT secret
+- **AES-256-GCM** : tous les secrets (API keys, mots de passe) chiffrés sur disque — clé dérivée du JWT secret via SHA-256
+- **`connections.json` chmod 600** — toujours écrit avec permissions restrictives (lecture propriétaire uniquement)
 - **Helmet CSP** : `script-src 'self'`, `connect-src 'self'`, `frame-ancestors 'none'`
 - **Cache-Control: no-store** sur toutes les routes `/api`
 - **SSRF** : validation de l'URL du lien magnet avant envoi à qBittorrent
-- **NODE_ENV=production** injecté par PM2
-
-> Le JWT secret est la clé maître de l'application : il signe les tokens d'authentification ET dérive la clé de chiffrement AES des secrets. En cas de perte ou de rotation du secret, tous les tokens existants sont invalidés et les champs chiffrés dans `connections.json` doivent être re-saisis.
 
 ---
 

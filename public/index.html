@@ -17,6 +17,28 @@
 </head>
 <body>
 
+<!-- Setup screen (premier démarrage) -->
+<div class="login-screen" id="setup-screen">
+  <div class="login-box">
+    <div class="login-title"><div class="dot"></div> SeeDash — Premier démarrage</div>
+    <p class="setup-intro">Créez votre compte administrateur pour commencer.</p>
+    <div class="login-field">
+      <label>Nom d'utilisateur</label>
+      <input type="text" id="setup-username" autocomplete="username" autocapitalize="none" placeholder="admin">
+    </div>
+    <div class="login-field">
+      <label>Mot de passe (min 8 caractères)</label>
+      <input type="password" id="setup-password" autocomplete="new-password" placeholder="••••••••">
+    </div>
+    <div class="login-field">
+      <label>Confirmer le mot de passe</label>
+      <input type="password" id="setup-password2" autocomplete="new-password" placeholder="••••••••">
+    </div>
+    <button class="login-btn" id="setup-btn">Configurer</button>
+    <div class="login-error" id="setup-error"></div>
+  </div>
+</div>
+
 <!-- Login screen -->
 <div class="login-screen" id="login-screen">
   <div class="login-box">
@@ -220,7 +242,7 @@
         <div class="rule-name cfg-title">C411</div>
         <div class="cfg-fields-1">
           <div class="rule-desc cfg-label">Clé API <span id="sec-c411-apikey-cur" class="cfg-hint"></span></div>
-          <input type="password" id="sec-c411-apikey" class="cfg-input" placeholder="Nouveau — laisser vide pour conserver">
+          <input type="password" id="sec-c411-apikey" class="cfg-input">
         </div>
       </div>
 
@@ -238,7 +260,7 @@
           </div>
           <div>
             <div class="rule-desc cfg-label">Mot de passe <span id="sec-qbit-password-cur" class="cfg-hint"></span></div>
-            <input type="password" id="sec-qbit-password" class="cfg-input" placeholder="Nouveau — laisser vide pour conserver">
+            <input type="password" id="sec-qbit-password" class="cfg-input">
           </div>
         </div>
       </div>
@@ -253,7 +275,7 @@
           </div>
           <div>
             <div class="rule-desc cfg-label">Token <span id="sec-ultracc-token-cur" class="cfg-hint"></span></div>
-            <input type="password" id="sec-ultracc-token" class="cfg-input" placeholder="Nouveau — laisser vide pour conserver">
+            <input type="password" id="sec-ultracc-token" class="cfg-input">
           </div>
         </div>
       </div>
