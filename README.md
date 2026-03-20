@@ -232,6 +232,7 @@ Allez dans l'onglet **Configuration** → section **Sécurité** → changez le 
 ### Commandes utiles
 
 ```bash
+npm test               # tests unitaires (44 tests, runner natif node:test)
 pm2 reload seedash     # rechargement gracieux après modification du code
 pm2 logs seedash       # logs en temps réel
 pm2 flush seedash      # vider les logs
@@ -470,20 +471,34 @@ Format retourné par `GET /api/rules` :
 
 ```
 seedash/
-├── server.js              — API Express, auth JWT, timers auto-grab
+├── server.js              — API Express, auth JWT, timers auto-grab, routes
 ├── cleaner.js             — logique de nettoyage + timer setInterval
-├── resolve-meta.js        — script autonome de résolution des métadonnées C411
 ├── crypto-config.js       — chiffrement/déchiffrement AES-256-GCM
 ├── ecosystem.config.js    — config PM2 avec JWT_SECRET (ne pas committer)
 ├── config.json            — config générale : port, baseurl, auto_grab, auto_clean (versionné)
 ├── connections.json       — secrets chiffrés : auth, c411, qbittorrent, ultracc_api (ignoré git)
 ├── package.json
 ├── .gitignore
+├── lib/
+│   ├── auth.js            — auth JWT, brute-force, middleware requireAuth
+│   ├── qbit.js            — client qBittorrent (login, request, session)
+│   ├── ultracc.js         — client Ultra.cc (stats, cache TTL 120s)
+│   ├── grab.js            — auto-grab (cycle, timer, filterCandidates)
+│   └── helpers.js         — helpers purs (getIn, setIn, maskSecret, isHttpUrl)
 ├── public/
 │   ├── index.html         — HTML structurel pur (aucun style ni script inline)
 │   ├── style.css          — tout le CSS (variables CSS, layout, composants, thème sombre)
-│   ├── app.js             — tout le JS frontend (event delegation, zéro handler inline)
-│   └── theme-init.js      — restauration du thème sombre avant rendu (évite le flash)
+│   ├── theme-init.js      — restauration du thème sombre avant rendu (évite le flash)
+│   ├── utils.js           — helpers purs : he(), fmt*(), toast, CAT_NAMES, BASE
+│   ├── stats.js           — LEDs de connexion, loadStats, updateQbitStats
+│   ├── charts.js          — graphiques Chart.js (ratio, upload, modal)
+│   ├── top.js             — top leechers, tri, sélection, auto-refresh
+│   ├── actifs.js          — torrents actifs, badge suppression, insertChartRow
+│   ├── rules.js           — règles, cleaner, historique, secrets
+│   └── app.js             — globals partagés, auth, tabs, event listeners, init
+├── tests/
+│   ├── cleaner-logic.test.js — 23 tests shouldDelete (toutes branches logiques)
+│   └── grab-logic.test.js    — 21 tests filterCandidates (filtres, tri, limites)
 └── logs/                  — créé automatiquement au démarrage
     ├── history.json        — historique grabs/suppressions (500 entrées max)
     ├── top-cache.json      — cache du dernier top leechers C411

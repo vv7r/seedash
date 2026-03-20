@@ -1,85 +1,38 @@
 const express      = require('express');
-const axios        = require('axios');
 const path         = require('path');
 const fs           = require('fs');
 const { XMLParser } = require('fast-xml-parser');
-const cleaner      = require('./cleaner');
-const crypto       = require('crypto');
+const axios        = require('axios');
 const bcrypt       = require('bcrypt');
 const jwt          = require('jsonwebtoken');
 const helmet       = require('helmet');
 const cookieParser = require('cookie-parser');
-const { encrypt, decrypt, PREFIX } = require('./crypto-config');
+const cleaner      = require('./cleaner');
+const { encrypt, PREFIX } = require('./crypto-config');
 
-// Champs secrets à chiffrer sur disque
-const SECRET_PATHS = [
-  ['c411', 'apikey'],
-  ['qbittorrent', 'username'],
-  ['qbittorrent', 'password'],
-  ['ultracc_api', 'token'],
-];
+const helpers  = require('./lib/helpers');
+const auth     = require('./lib/auth');
+const qbit     = require('./lib/qbit');
+const ultracc  = require('./lib/ultracc');
+const grab     = require('./lib/grab');
 
-/**
- * Lit une valeur imbriquée dans un objet en suivant un chemin de clés.
- * Exemple : getIn(cfg, ['qbittorrent', 'password']) → cfg.qbittorrent.password
- * Retourne undefined si un niveau intermédiaire est absent.
- */
-function getIn(obj, path) { return path.reduce((o, k) => o?.[k], obj); }
-
-/**
- * Écrit une valeur à un chemin imbriqué dans un objet existant.
- * Modifie l'objet en place — ne crée pas les niveaux manquants.
- */
-function setIn(obj, path, val) {
-  const parent = path.slice(0, -1).reduce((o, k) => o[k], obj);
-  if (parent) parent[path[path.length - 1]] = val;
-}
-
-/**
- * Masque partiellement un secret pour l'affichage (interface utilisateur).
- * Conserve `show` caractères au début et à la fin, remplace le reste par des étoiles.
- * Si la valeur est trop courte, retourne 8 étoiles fixes pour éviter de révéler la longueur.
- */
-function maskSecret(val, show = 3) {
-  if (!val) return '';
-  if (val.length <= show * 2) return '*'.repeat(8);
-  return val.slice(0, show) + '*'.repeat(val.length - show * 2) + val.slice(-show);
-}
-
-/**
- * Résout la clé de signature JWT.
- * Priorité : variable d'environnement JWT_SECRET (PM2) > cfg.auth.jwt_secret (config.json).
- */
-function getJwtSecret() {
-  return process.env.JWT_SECRET || cfg.auth?.jwt_secret;
-}
-
-/**
- * Déchiffre en mémoire tous les champs secrets de `cfg` qui sont stockés chiffrés sur disque.
- * Doit être appelé au démarrage, après que la clé JWT soit disponible.
- * Sans clé JWT, la fonction est silencieusement sans effet.
- */
-function decryptSecrets() {
-  const key = getJwtSecret();
-  if (!key) return;
-  for (const p of SECRET_PATHS) {
-    const v = getIn(cfg, p);
-    if (v) setIn(cfg, p, decrypt(v, key));
-  }
-}
+const { SECRET_PATHS, GRAB_RULE_KEYS, CLEAN_RULE_KEYS, VALID_RULE_KEYS, getIn, setIn, maskSecret, isHttpUrl } = helpers;
 
 // --- Config ---
-const CFG_PATH      = path.join(__dirname, 'config.json');
-const CONN_PATH     = path.join(__dirname, 'connections.json');
-const HISTORY_PATH  = path.join(__dirname, 'logs', 'history.json');
-const HISTORY_MAX   = 500;
-const TOP_CACHE_PATH = path.join(__dirname, 'logs', 'top-cache.json');
-// Associe hash qBittorrent → nom C411, pour afficher le nom C411 dans les torrents actifs
-const NAMEMAP_PATH    = path.join(__dirname, 'logs', 'namemap.json');
-const CATMAP_PATH     = path.join(__dirname, 'logs', 'categorymap.json');
+const CFG_PATH           = path.join(__dirname, 'config.json');
+const CONN_PATH          = path.join(__dirname, 'connections.json');
+const HISTORY_PATH       = path.join(__dirname, 'logs', 'history.json');
+const HISTORY_MAX        = 500;
+const TOP_CACHE_PATH     = path.join(__dirname, 'logs', 'top-cache.json');
+const NAMEMAP_PATH       = path.join(__dirname, 'logs', 'namemap.json');
+const CATMAP_PATH        = path.join(__dirname, 'logs', 'categorymap.json');
 const UPLOAD_HISTORY_PATH = path.join(__dirname, 'logs', 'upload-history.json');
+const TORRENT_LIST_PATH  = path.join(__dirname, 'logs', 'torrent-list.json');
+const TORRENT_LIST_MAX   = 500;
+
 // Clés appartenant à connections.json
 const CONN_KEYS = ['c411', 'qbittorrent', 'ultracc_api', 'auth'];
+
 let cfg = {
   ...JSON.parse(fs.readFileSync(CFG_PATH)),
   ...(() => { try { return JSON.parse(fs.readFileSync(CONN_PATH)); } catch { return {}; } })(),
@@ -93,13 +46,16 @@ if (!fs.existsSync(path.join(__dirname, 'logs'))) {
 let topCache = { items: [], date: null };
 try { topCache = JSON.parse(fs.readFileSync(TOP_CACHE_PATH)); } catch {}
 
-// Correspondance hash → nom C411 (persistée sur disque)
+// Callbacks pour grab.js (topCache est réassigné, pas muté)
+const getTopCache = () => topCache;
+const setTopCache = (val) => { topCache = val; };
+
+// Correspondance hash → nom C411
 let nameMap = {};
 try { nameMap = JSON.parse(fs.readFileSync(NAMEMAP_PATH)); } catch {}
 
 /**
  * Persiste nameMap sur disque via écriture atomique (tmp + rename).
- * Appelée à chaque modification de nameMap pour maintenir la cohérence disque/mémoire.
  */
 function saveNameMap() {
   try {
@@ -109,13 +65,12 @@ function saveNameMap() {
   } catch(e) { console.error('[namemap]', e.message); }
 }
 
-// Correspondance hash → catégorie C411 (persistée sur disque)
+// Correspondance hash → catégorie C411
 let categoryMap = {};
 try { categoryMap = JSON.parse(fs.readFileSync(CATMAP_PATH)); } catch {}
 
 /**
  * Persiste categoryMap sur disque via écriture atomique (tmp + rename).
- * Appelée à chaque modification de categoryMap pour maintenir la cohérence disque/mémoire.
  */
 function saveCategoryMap() {
   try {
@@ -130,8 +85,7 @@ let uploadHistory = {};
 try { uploadHistory = JSON.parse(fs.readFileSync(UPLOAD_HISTORY_PATH)); } catch {}
 
 /**
- * Persiste uploadHistory sur disque via écriture atomique (tmp + rename).
- * Utilise JSON sans indentation pour limiter la taille du fichier (données volumineuses).
+ * Persiste uploadHistory sur disque via écriture atomique.
  */
 function saveUploadHistory() {
   try {
@@ -143,8 +97,7 @@ function saveUploadHistory() {
 
 /**
  * Supprime de uploadHistory les entrées dont le hash n'est plus actif dans qBittorrent.
- * Évite une accumulation infinie de points de mesure pour des torrents supprimés.
- * @param {Set<string>} activeHashes - Ensemble des hashs actuellement actifs dans qBittorrent
+ * @param {Set<string>} activeHashes - Ensemble des hashs actuellement actifs
  */
 function pruneUploadHistory(activeHashes) {
   let dirty = false;
@@ -154,24 +107,19 @@ function pruneUploadHistory(activeHashes) {
   if (dirty) saveUploadHistory();
 }
 
-// Liste plate des torrents grabbés (persistée sur disque, max 500 entrées)
-const TORRENT_LIST_PATH = path.join(__dirname, 'logs', 'torrent-list.json');
-const TORRENT_LIST_MAX  = 500;
+// Liste plate des torrents grabbés
 let torrentList = [];
 try { torrentList = JSON.parse(fs.readFileSync(TORRENT_LIST_PATH)); } catch {}
 
 /**
- * Ajoute des entrées dans la liste plate des torrents grabés (torrent-list.json).
- * Ignore les entrées sans hash ou sans nom, et déduplique par hash.
- * Insère en tête de liste et tronque à TORRENT_LIST_MAX (500) entrées.
- * Persiste immédiatement via écriture atomique.
- * @param {Array<{hash: string, name: string, url?: string}>} entries - Torrents à ajouter
+ * Ajoute des entrées dans la liste plate des torrents grabés.
+ * Déduplique par hash, insère en tête, tronque à TORRENT_LIST_MAX.
+ * @param {Array<{hash: string, name: string, url?: string}>} entries
  */
 function appendTorrentList(entries) {
-  // entries = [{ hash, name, url }]
   for (const e of entries) {
     if (!e.hash || !e.name) continue;
-    if (torrentList.some(t => t.hash === e.hash)) continue; // pas de doublon
+    if (torrentList.some(t => t.hash === e.hash)) continue;
     torrentList.unshift({ hash: e.hash, name: e.name, url: e.url || null, date: new Date().toISOString() });
   }
   if (torrentList.length > TORRENT_LIST_MAX) torrentList = torrentList.slice(0, TORRENT_LIST_MAX);
@@ -183,10 +131,10 @@ function appendTorrentList(entries) {
 }
 
 const app = express();
-app.set('trust proxy', 1); // Lit X-Forwarded-For depuis Nginx pour la protection brute-force
+app.set('trust proxy', 1);
 app.use(helmet({
   contentSecurityPolicy: {
-    useDefaults: false,   // évite upgrade-insecure-requests et les autres defaults Helmet
+    useDefaults: false,
     directives: {
       defaultSrc:     ["'self'"],
       scriptSrc:      ["'self'"],
@@ -204,22 +152,16 @@ app.use(express.json({ limit: '64kb' }));
 app.use(cfg.baseurl, express.static(path.join(__dirname, 'public')));
 app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
 
-// --- Helpers ---
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
 
 /**
  * Persiste la configuration générale dans config.json (hors connexions/secrets).
- * Synchronise d'abord le statut live du cleaner (last_run, last_deleted_count, last_run_type)
- * pour ne pas perdre ces données entre deux redémarrages.
- * Utilise un fichier .tmp + renameSync pour éviter les corruptions en cas de crash.
  */
 function saveCfg() {
-  // Toujours fusionner le statut live du cleaner pour persistance
   const st = cleaner.getStatus();
   cfg.auto_clean.last_run           = st.last_run;
   cfg.auto_clean.last_deleted_count = st.last_deleted_count;
   cfg.auto_clean.last_run_type      = st.last_run_type;
-  // N'écrire que les clés de config générale (sans les connexions)
   const toWrite = Object.fromEntries(Object.entries(cfg).filter(([k]) => !CONN_KEYS.includes(k)));
   const tmp = CFG_PATH + '.tmp';
   try {
@@ -234,23 +176,19 @@ function saveCfg() {
 
 /**
  * Persiste les connexions et secrets dans connections.json.
- * Les secrets (apikey, password, token) sont rechiffrés AES-256-GCM avant l'écriture.
- * Si JWT_SECRET provient de la variable d'environnement, la clé n'est pas écrite sur disque.
- * Utilise un fichier .tmp + renameSync pour éviter les corruptions en cas de crash.
+ * Les secrets sont rechiffrés AES-256-GCM avant l'écriture.
  */
 function saveConn() {
-  // N'écrire que les clés de connexion, secrets chiffrés
   const toWrite = JSON.parse(JSON.stringify(
     Object.fromEntries(Object.entries(cfg).filter(([k]) => CONN_KEYS.includes(k)))
   ));
-  const key = getJwtSecret();
+  const key = auth.getJwtSecret();
   if (key) {
     for (const p of SECRET_PATHS) {
       const v = getIn(toWrite, p);
       if (v && !v.startsWith(PREFIX)) setIn(toWrite, p, encrypt(v, key));
     }
   }
-  // Si JWT_SECRET vient de l'env, ne pas le réécrire dans connections.json
   if (process.env.JWT_SECRET && toWrite.auth) delete toWrite.auth.jwt_secret;
   const tmp = CONN_PATH + '.tmp';
   try {
@@ -267,8 +205,6 @@ function saveConn() {
 
 /**
  * Ajoute une entrée dans l'historique des actions (grab, clean, delete).
- * Relit le fichier history.json à chaque appel pour éviter les conflits d'écriture concurrente.
- * Tronque à HISTORY_MAX entrées (500) pour limiter la taille du fichier.
  * @param {string} type    - Type d'action : 'grab', 'clean' ou 'delete'
  * @param {number} count   - Nombre d'éléments concernés
  * @param {string} source  - Origine de l'action : 'manuel', 'auto', etc.
@@ -286,17 +222,13 @@ function appendHistory(type, count, source, names = []) {
   } catch(e) { console.error('[history] Erreur écriture:', e.message); }
 }
 
-// --- Config defaults init (crée les clés manquantes au premier démarrage) ---
+// --- Config defaults init ---
 
 /**
  * Initialise les clés de configuration manquantes avec leurs valeurs par défaut.
- * Appelée au démarrage pour assurer la rétrocompatibilité avec les configs antérieures.
- * Sauvegarde automatiquement si des clés ont été ajoutées.
  */
 function initConfig() {
   let changed = false;
-  // rules_on par défaut alignés sur defOn du client (app.js RULE_DEFS) :
-  // absent de rules_on = traité comme true côté serveur → doit être explicitement false pour les règles opt-in
   const DEFAULT_GRAB_RULES_ON  = { grab_limit_per_day: true, size_max_gb: true, active_max: false, min_leechers: false, min_seeders: false };
   if (!cfg.auto_grab) {
     cfg.auto_grab = { enabled: false, interval_minutes: 15, last_run: null, last_grab_count: 0,
@@ -320,228 +252,12 @@ function initConfig() {
   }
 }
 
-// --- Auth init ---
-
-/**
- * Initialise le bloc d'authentification au premier démarrage.
- * - Génère un jwt_secret aléatoire (64 octets hex) si absent et si JWT_SECRET n'est pas en env.
- * - Hache le mot de passe par défaut 'changeme' (bcrypt, coût 12) si aucun hash existant.
- * - Applique les migrations de clés ajoutées après la v1.0 (token_expiry, issued_after).
- * Sauvegarde via saveConn() uniquement si des modifications ont été faites.
- */
-async function initAuth() {
-  let changed = false;
-  if (!cfg.auth) cfg.auth = { username: 'admin', password_hash: '', jwt_secret: '', token_expiry: '24h', issued_after: 0 };
-  // Générer jwt_secret uniquement si pas de variable d'env et pas déjà présent
-  if (!process.env.JWT_SECRET && !cfg.auth.jwt_secret) {
-    cfg.auth.jwt_secret = crypto.randomBytes(64).toString('hex');
-    changed = true;
-  }
-  if (!cfg.auth.password_hash) {
-    cfg.auth.password_hash = await bcrypt.hash('changeme', 12);
-    changed = true;
-    console.log('⚠️  MOT DE PASSE PAR DÉFAUT : changeme — changez-le dans l\'interface');
-  }
-  // Migrations : clés ajoutées après la v1.0
-  if (!cfg.auth.token_expiry)              { cfg.auth.token_expiry  = '24h'; changed = true; }
-  if (cfg.auth.issued_after === undefined) { cfg.auth.issued_after  = 0;     changed = true; }
-  if (changed) saveConn();
-}
-
-// --- Brute-force protection ---
-const loginAttempts = new Map(); // ip -> { count, blockedUntil }
-
-/**
- * Vérifie si une IP est actuellement bloquée par la protection brute-force.
- * Nettoie automatiquement l'entrée si le blocage a expiré.
- * @returns {boolean} true si l'IP est bloquée, false sinon
- */
-function checkBruteForce(ip) {
-  const entry = loginAttempts.get(ip);
-  if (!entry) return false;
-  if (entry.blockedUntil && Date.now() < entry.blockedUntil) return true;
-  if (entry.blockedUntil && Date.now() >= entry.blockedUntil) {
-    loginAttempts.delete(ip);
-    return false;
-  }
-  return false;
-}
-
-/**
- * Réinitialise le compteur d'échecs de connexion pour une IP donnée.
- * Appelé après un login réussi.
- */
-function resetLoginAttempts(ip) {
-  loginAttempts.delete(ip);
-}
-
-// --- Auth middleware ---
-
-/**
- * Middleware Express qui vérifie l'authentification JWT pour toutes les routes protégées.
- * Accepte le token depuis le cookie httpOnly `seedash_token` (prioritaire)
- * ou depuis l'en-tête `Authorization: Bearer <token>` (compatibilité).
- * Rejette les tokens émis avant le dernier changement de mot de passe (issued_after).
- */
-function requireAuth(req, res, next) {
-  // Cookie httpOnly en priorité, fallback Authorization Bearer (compatibilité)
-  const token = req.cookies?.seedash_token || req.headers['authorization']?.replace(/^Bearer /, '');
-  if (!token) return res.status(401).json({ error: 'Non authentifié' });
-  try {
-    const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
-    // Invalide les tokens émis avant le dernier changement de mot de passe
-    if (decoded.iat < (cfg.auth.issued_after || 0)) {
-      return res.status(401).json({ error: 'Token révoqué' });
-    }
-    req.user = decoded;
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Token invalide ou expiré' });
-  }
-}
-
-// --- PUBLIC: Login ---
-
-// POST /api/login — authentification par username/password, retourne un cookie httpOnly JWT
-app.post(`${cfg.baseurl}/api/login`, async (req, res) => {
-  const ip = req.ip;
-  if (checkBruteForce(ip)) {
-    return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans 15 minutes.' });
-  }
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: 'Champs manquants' });
-  if (username !== cfg.auth.username) {
-    recordFailedLogin(ip);
-    return res.status(401).json({ error: 'Identifiants incorrects' });
-  }
-  const ok = await bcrypt.compare(password, cfg.auth.password_hash);
-  if (!ok) {
-    recordFailedLogin(ip);
-    return res.status(401).json({ error: 'Identifiants incorrects' });
-  }
-  resetLoginAttempts(ip);
-  const token = jwt.sign({ username }, getJwtSecret(), { expiresIn: cfg.auth.token_expiry || '24h', algorithm: 'HS256' });
-  // Cookie httpOnly : inaccessible depuis JS, protégé contre XSS
-  res.cookie('seedash_token', token, {
-    httpOnly: true,
-    secure:   req.secure || req.headers['x-forwarded-proto'] === 'https',
-    sameSite: 'Strict',
-    maxAge:   24 * 60 * 60 * 1000,
-  });
-  res.json({ ok: true });
-});
-
-// --- PUBLIC: Change password ---
-
-// POST /api/change-password — change le mot de passe et invalide tous les tokens existants
-app.post(`${cfg.baseurl}/api/change-password`, requireAuth, async (req, res) => {
-  const { current_password, new_password } = req.body;
-  if (!current_password || !new_password) return res.status(400).json({ error: 'Champs manquants' });
-  if (new_password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (min 8 caractères)' });
-  const ok = await bcrypt.compare(current_password, cfg.auth.password_hash);
-  if (!ok) return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
-  cfg.auth.password_hash = await bcrypt.hash(new_password, 12);
-  // Invalide tous les tokens émis avant ce changement
-  cfg.auth.issued_after = Math.floor(Date.now() / 1000);
-  saveConn();
-  res.json({ ok: true });
-});
-
-// POST /api/logout — supprime le cookie de session
-app.post(`${cfg.baseurl}/api/logout`, (req, res) => {
-  res.clearCookie('seedash_token', { sameSite: 'Strict' });
-  res.json({ ok: true });
-});
-
-// --- Ultra.cc API cache (TTL 60s) ---
-let ultraccCache = { data: null, lastFetch: 0 };
-
-/**
- * Retourne les statistiques Ultra.cc (disque, trafic) avec mise en cache pour éviter les 429.
- * Stratégie de cache à deux niveaux :
- *  - Cache frais (< 5 minutes) : retour immédiat sans requête réseau
- *  - Essai récent (< 60 secondes) : retourne les données périmées si disponibles, sinon erreur
- *  - Sinon : déclenche une nouvelle requête vers l'API Ultra.cc
- * L'horodatage du dernier essai est mis à jour avant la requête pour éviter les appels concurrents.
- */
-async function getUltraccStats() {
-  const now = Date.now();
-  const age = now - ultraccCache.lastFetch;
-  // Cache frais → retour immédiat
-  if (ultraccCache.data && age < 300000) return ultraccCache.data;
-  // Essai récent (succès ou échec) → pas de retry avant 60s pour éviter les 429
-  if (age < 60000) {
-    if (ultraccCache.data) return ultraccCache.data; // données légèrement périmées, OK
-    throw new Error('Ultra.cc indisponible (anti-429)');
-  }
-  // Marquer l'essai AVANT la requête → bloque les appels concurrents en cas d'erreur
-  ultraccCache.lastFetch = now;
-  const r = await axios.get(cfg.ultracc_api.url, {
-    headers: { Authorization: `Bearer ${cfg.ultracc_api.token}` },
-    timeout: 15000
-  });
-  ultraccCache.data = r.data.service_stats_info;
-  return ultraccCache.data;
-}
-
-// --- qBittorrent session ---
-let qbitCookie = null;
-
-/**
- * Ouvre une session qBittorrent et stocke le cookie de session dans `qbitCookie`.
- * Utilise l'authentification form-urlencoded attendue par l'API qBittorrent v2.
- * @returns {string} Le cookie de session (format "SID=...") extrait de l'en-tête Set-Cookie
- */
-async function qbitLogin() {
-  const r = await axios.post(
-    `${cfg.qbittorrent.url}/api/v2/auth/login`,
-    `username=${encodeURIComponent(cfg.qbittorrent.username)}&password=${encodeURIComponent(cfg.qbittorrent.password)}`,
-    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 10000 }
-  );
-  qbitCookie = r.headers['set-cookie']?.[0]?.split(';')[0];
-  return qbitCookie;
-}
-
-/**
- * Exécute une requête vers l'API qBittorrent v2 avec gestion automatique de session.
- * Se connecte si aucun cookie n'est disponible.
- * En cas d'erreur 403 (session expirée), effectue un re-login unique et retente la requête.
- * @param {string} method   - Méthode HTTP ('get' ou 'post')
- * @param {string} endpoint - Chemin API après '/api/v2' (ex: '/torrents/info')
- * @param {string|null} data - Corps de la requête POST (form-urlencoded) ou null
- */
-async function qbitRequest(method, endpoint, data = null) {
-  if (!qbitCookie) await qbitLogin();
-  const opts = {
-    method,
-    url: `${cfg.qbittorrent.url}/api/v2${endpoint}`,
-    data,
-    timeout: 10000,
-    headers: {
-      Cookie: qbitCookie,
-      ...(data ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {})
-    }
-  };
-  try {
-    return (await axios(opts)).data;
-  } catch (e) {
-    // Session expirée → re-login une fois
-    if (e.response?.status === 403) {
-      await qbitLogin();
-      opts.headers.Cookie = qbitCookie;
-      return (await axios(opts)).data;
-    }
-    throw e;
-  }
-}
-
 // ============================================================
 // ROUTES C411
-// Toutes les routes d'accès à l'indexeur C411 (top leechers, cache)
 // ============================================================
 
-// GET /api/top-leechers?n=20&cat=all — récupère et trie le top des torrents par nombre de leechers
-app.get(`${cfg.baseurl}/api/top-leechers`, requireAuth, async (req, res) => {
+// GET /api/top-leechers?n=20&cat=all
+app.get(`${cfg.baseurl}/api/top-leechers`, auth.requireAuth, async (req, res) => {
   const n   = Math.min(parseInt(req.query.n) || 20, 100);
   const cat = req.query.cat || '';
   try {
@@ -582,12 +298,10 @@ app.get(`${cfg.baseurl}/api/top-leechers`, requireAuth, async (req, res) => {
       fs.renameSync(tmp, TOP_CACHE_PATH);
     } catch(e) { console.error('[top-cache]', e.message); }
 
-    // Fire-and-forget : résoudre en arrière-plan les noms/catégories des torrents actifs
-    // absents du nameMap et du cache top courant, via recherche C411 par infohash ou titre
+    // Fire-and-forget : résolution en arrière-plan des noms/catégories
     (async () => {
       try {
-        const active = await qbitRequest('get', '/torrents/info');
-        // Index top courant hash → {nom, catégorie} (non tronqué à 100, utilise list entière)
+        const active = await qbit.qbitRequest('get', '/torrents/info');
         const topByHashName = {};
         const topByHashCat  = {};
         for (const item of list) {
@@ -597,7 +311,6 @@ app.get(`${cfg.baseurl}/api/top-leechers`, requireAuth, async (req, res) => {
             if (item.category != null) topByHashCat[h] = String(item.category);
           }
         }
-        // Étape 1 : persister dans nameMap/categoryMap les actifs présents dans le top courant
         let nameMapDirty = false;
         let catMapDirty  = false;
         for (const t of active) {
@@ -607,7 +320,6 @@ app.get(`${cfg.baseurl}/api/top-leechers`, requireAuth, async (req, res) => {
         }
         if (nameMapDirty) saveNameMap();
         if (catMapDirty)  saveCategoryMap();
-        // Étape 2 : résoudre via recherche C411 les actifs sans catégorie ou sans nom C411
         const unmapped = active.filter(t => {
           const h = t.hash.toLowerCase();
           return !categoryMap[h] || (!nameMap[h] && !topByHashName[h]);
@@ -617,14 +329,10 @@ app.get(`${cfg.baseurl}/api/top-leechers`, requireAuth, async (req, res) => {
           const needCat  = !categoryMap[hash];
           const needName = !nameMap[hash] && !topByHashName[hash];
           if (!needCat && !needName) continue;
-          // Nettoyage du nom interne qBittorrent pour construire des requêtes de recherche exploitables
           const base = t.name.replace(/\.(mkv|avi|mp4|m4v|ts|iso)$/i, '').replace(/\./g, ' ');
-          // Supprime l'année et les tags techniques pour isoler le titre significatif
           const titleClean = base.replace(/\b(19\d{2}|20\d{2})\b.*/, '').replace(/\b(1080p|2160p|720p|4K|UHD|BluRay|WEB|HDTV|MULTI|MULTi|COMPLETE|S\d{2}|REMUX|Hybrid)\b.*/i, '').replace(/[-.()\s]+$/, '').trim();
           const stopWords = new Set(['the','a','an','la','le','les','de','du','des','un','une']);
-          // Filtre les mots vides pour garder les mots significatifs du titre
           const sigWords = titleClean.split(/\s+/).filter(w => !stopWords.has(w.toLowerCase()));
-          // Séquence de requêtes progressivement moins précises : infohash d'abord, puis titre tronqué
           const queries = [
             hash,
             titleClean,
@@ -675,20 +383,18 @@ app.get(`${cfg.baseurl}/api/top-leechers`, requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/top-leechers/cache — retourne le cache top leechers en mémoire sans requête C411
-app.get(`${cfg.baseurl}/api/top-leechers/cache`, requireAuth, (req, res) => {
+// GET /api/top-leechers/cache
+app.get(`${cfg.baseurl}/api/top-leechers/cache`, auth.requireAuth, (req, res) => {
   res.json(topCache);
 });
 
 // ============================================================
 // ROUTES qBITTORRENT
-// Gestion des torrents actifs : liste, ajout (grab), suppression, historique d'upload
 // ============================================================
 
-// GET /api/torrents — liste tous les torrents actifs avec résolution du nom C411 et de la catégorie
-app.get(`${cfg.baseurl}/api/torrents`, requireAuth, async (req, res) => {
+// GET /api/torrents
+app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, async (req, res) => {
   try {
-    // Index du cache top leechers par infohash pour résoudre les noms et catégories C411
     const topByHash = {};
     const topCatByHash = {};
     for (const item of topCache.items || []) {
@@ -698,8 +404,7 @@ app.get(`${cfg.baseurl}/api/torrents`, requireAuth, async (req, res) => {
         if (item.category != null) topCatByHash[h] = String(item.category);
       }
     }
-    const data = await qbitRequest('get', '/torrents/info');
-    // Pré-calcul de la condition upload_min_mb (miroir de uploadCondition dans cleaner.js)
+    const data = await qbit.qbitRequest('get', '/torrents/info');
     const cleanRules  = cfg.auto_clean?.rules    || {};
     const cleanOn     = cfg.auto_clean?.rules_on || {};
     const isCleanOn   = (k) => cleanOn[k] !== false;
@@ -709,7 +414,6 @@ app.get(`${cfg.baseurl}/api/torrents`, requireAuth, async (req, res) => {
     const uploadWinSec = (cleanRules.upload_window_hours || 48) * 3600;
     const list = data.map(t => {
       const hash = t.hash.toLowerCase();
-      // Condition upload : torrent "mort" (upload insuffisant sur la fenêtre glissante)
       let upload_condition = false;
       if (uploadMinMb !== null
         && (!isCleanOn('age_min_hours') || (nowSec - t.added_on) >= ageMinSec)
@@ -717,7 +421,6 @@ app.get(`${cfg.baseurl}/api/torrents`, requireAuth, async (req, res) => {
         const points   = uploadHistory[hash] || [];
         const winStart = nowSec - uploadWinSec;
         const inWin    = points.filter(([ts]) => ts >= winStart);
-        // L'historique doit couvrir toute la fenêtre (premier point antérieur à winStart)
         const historyCoversWindow = points.length > 0 && points[0][0] <= winStart;
         if (historyCoversWindow && inWin.length >= 2) {
           const delta = inWin[inWin.length - 1][1] - inWin[0][1];
@@ -749,11 +452,10 @@ app.get(`${cfg.baseurl}/api/torrents`, requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/grab — soumet un torrent C411 à qBittorrent, mémorise le nom et la catégorie C411
-app.post(`${cfg.baseurl}/api/grab`, requireAuth, async (req, res) => {
+// POST /api/grab
+app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
   const { url, name, page_url, infohash, category } = req.body;
   if (!url) return res.status(400).json({ error: 'url requis' });
-  // Vérifier que l'URL cible bien le domaine C411 configuré (prévention SSRF)
   try {
     const allowed = new URL(cfg.c411.url).hostname;
     const target  = new URL(url).hostname;
@@ -761,12 +463,10 @@ app.post(`${cfg.baseurl}/api/grab`, requireAuth, async (req, res) => {
   } catch {
     return res.status(400).json({ error: 'URL invalide' });
   }
-  // Si l'URL est une page torrent (pas une URL de download), construire l'URL directe
   const downloadUrl = url.includes('/api?t=get') ? url
     : `${cfg.c411.url.replace('/api/torznab','')}/api?t=get&id=${url.split('/').pop()}&apikey=${cfg.c411.apikey}`;
   try {
-    await qbitRequest('post', '/torrents/add', `urls=${encodeURIComponent(downloadUrl)}`);
-    // Mémorise hash → nom C411 pour l'afficher dans les torrents actifs à la place du nom interne qBittorrent
+    await qbit.qbitRequest('post', '/torrents/add', `urls=${encodeURIComponent(downloadUrl)}`);
     if (name && infohash) {
       const lhash = infohash.toLowerCase();
       nameMap[lhash] = name;
@@ -783,16 +483,14 @@ app.post(`${cfg.baseurl}/api/grab`, requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/torrents/:hash — supprime un torrent de qBittorrent et nettoie nameMap/categoryMap/uploadHistory
-app.delete(`${cfg.baseurl}/api/torrents/:hash`, requireAuth, async (req, res) => {
+// DELETE /api/torrents/:hash
+app.delete(`${cfg.baseurl}/api/torrents/:hash`, auth.requireAuth, async (req, res) => {
   const { hash } = req.params;
   if (!/^[a-f0-9]{40}$/i.test(hash)) return res.status(400).json({ error: 'Hash invalide' });
   const deleteFiles = req.query.deleteFiles === 'true';
   const name        = (req.query.name || hash).slice(0, 256);
   try {
-    await qbitRequest('post', '/torrents/delete',
-      `hashes=${hash}&deleteFiles=${deleteFiles}`
-    );
+    await qbit.qbitRequest('post', '/torrents/delete', `hashes=${hash}&deleteFiles=${deleteFiles}`);
     const lhash = hash.toLowerCase();
     if (nameMap[lhash]) { delete nameMap[lhash]; saveNameMap(); }
     if (categoryMap[lhash]) { delete categoryMap[lhash]; saveCategoryMap(); }
@@ -804,8 +502,8 @@ app.delete(`${cfg.baseurl}/api/torrents/:hash`, requireAuth, async (req, res) =>
   }
 });
 
-// GET /api/upload-history/:hash — retourne les points de mesure d'upload pour le graphique du torrent
-app.get(`${cfg.baseurl}/api/upload-history/:hash`, requireAuth, (req, res) => {
+// GET /api/upload-history/:hash
+app.get(`${cfg.baseurl}/api/upload-history/:hash`, auth.requireAuth, (req, res) => {
   const { hash } = req.params;
   if (!/^[a-f0-9]{40}$/i.test(hash)) return res.status(400).json({ error: 'Hash invalide' });
   res.json({ points: uploadHistory[hash.toLowerCase()] || [] });
@@ -813,17 +511,10 @@ app.get(`${cfg.baseurl}/api/upload-history/:hash`, requireAuth, (req, res) => {
 
 // ============================================================
 // ROUTES RÈGLES
-// Lecture et écriture des règles auto_grab et auto_clean avec validation croisée.
-// Modèle de persistance des règles :
-//   cfg.auto_grab.rules / cfg.auto_clean.rules     — valeurs numériques
-//   cfg.auto_grab.rules_on / cfg.auto_clean.rules_on — état activé/désactivé par clé
+// ============================================================
 
-const GRAB_RULE_KEYS  = new Set(['grab_limit_per_day','size_max_gb','active_max','min_leechers','min_seeders']);
-const CLEAN_RULE_KEYS = new Set(['ratio_min','ratio_max','age_min_hours','age_max_hours','upload_min_mb','upload_window_hours']);
-const VALID_RULE_KEYS = new Set([...GRAB_RULE_KEYS, ...CLEAN_RULE_KEYS]);
-
-// GET /api/rules — retourne toutes les valeurs + toggles à plat (format attendu par le frontend)
-app.get(`${cfg.baseurl}/api/rules`, requireAuth, (req, res) => {
+// GET /api/rules
+app.get(`${cfg.baseurl}/api/rules`, auth.requireAuth, (req, res) => {
   res.json({
     ...cfg.auto_grab.rules,
     ...cfg.auto_clean.rules,
@@ -831,12 +522,11 @@ app.get(`${cfg.baseurl}/api/rules`, requireAuth, (req, res) => {
   });
 });
 
-// POST /api/rules — valide et sauvegarde les nouvelles valeurs de règles + états des toggles
-app.post(`${cfg.baseurl}/api/rules`, requireAuth, (req, res) => {
+// POST /api/rules
+app.post(`${cfg.baseurl}/api/rules`, auth.requireAuth, (req, res) => {
   const { _on, ...vals } = req.body;
   const nextGrab  = { ...cfg.auto_grab.rules };
   const nextClean = { ...cfg.auto_clean.rules };
-  // Mise à jour des valeurs numériques en les routant vers le bon groupe (grab ou clean)
   for (const [k, v] of Object.entries(vals)) {
     if (!VALID_RULE_KEYS.has(k)) continue;
     if (typeof v === 'number' && isFinite(v) && v >= 0) {
@@ -846,7 +536,6 @@ app.post(`${cfg.baseurl}/api/rules`, requireAuth, (req, res) => {
   }
   const nextGrabOn  = { ...cfg.auto_grab.rules_on };
   const nextCleanOn = { ...cfg.auto_clean.rules_on };
-  // Mise à jour des états de toggles (true/false) par groupe
   if (_on && typeof _on === 'object') {
     for (const [k, v] of Object.entries(_on)) {
       if (!VALID_RULE_KEYS.has(k)) continue;
@@ -854,7 +543,6 @@ app.post(`${cfg.baseurl}/api/rules`, requireAuth, (req, res) => {
       else                         nextCleanOn[k] = !!v;
     }
   }
-  // Validations croisées (uniquement sur les règles actives)
   const isOn = (k) => (GRAB_RULE_KEYS.has(k) ? nextGrabOn : nextCleanOn)[k] !== false;
   if (isOn('ratio_max') && isOn('ratio_min') && nextClean.ratio_max <= nextClean.ratio_min)
     return res.status(400).json({ error: `Ratio maximum (${nextClean.ratio_max}) doit être strictement supérieur au ratio minimum (${nextClean.ratio_min})` });
@@ -875,15 +563,13 @@ app.post(`${cfg.baseurl}/api/rules`, requireAuth, (req, res) => {
 
 // ============================================================
 // ROUTE STATS GLOBALES
-// Agrège les statistiques qBittorrent et Ultra.cc — chaque source est isolée par try/catch
 // ============================================================
 
-// GET /api/stats — statistiques agrégées : torrents actifs, ratio, vitesses, disque, trafic
-app.get(`${cfg.baseurl}/api/stats`, requireAuth, async (req, res) => {
-  // Les deux sources sont indépendantes — l'échec de l'une ne bloque pas l'autre
+// GET /api/stats
+app.get(`${cfg.baseurl}/api/stats`, auth.requireAuth, async (req, res) => {
   let active = 0, avgRatio = 0, dl_speed = 0, up_speed = 0;
   try {
-    const torrents = await qbitRequest('get', '/torrents/info');
+    const torrents = await qbit.qbitRequest('get', '/torrents/info');
     active   = torrents.length;
     const ratios = torrents.map(t => t.ratio).filter(r => r > 0);
     avgRatio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 0;
@@ -896,7 +582,7 @@ app.get(`${cfg.baseurl}/api/stats`, requireAuth, async (req, res) => {
   let disk_used_gb = null, disk_total_gb = null;
   let traffic_used_pct = null, traffic_reset_date = null;
   try {
-    const info       = await getUltraccStats();
+    const info       = await ultracc.getUltraccStats();
     disk_total_gb    = info.total_storage_value;
     disk_used_gb     = Math.round(disk_total_gb - info.free_storage_gb);
     traffic_used_pct = Math.round(info.traffic_used_percentage * 10) / 10;
@@ -907,51 +593,40 @@ app.get(`${cfg.baseurl}/api/stats`, requireAuth, async (req, res) => {
     console.error('[ultracc_api]', e.message);
   }
 
-  res.json({
-    active,
-    avg_ratio:    Math.round(avgRatio * 100) / 100,
-    dl_speed,
-    up_speed,
-    disk_used_gb,
-    disk_total_gb,
-    traffic_used_pct,
-    traffic_reset_date
-  });
+  res.json({ active, avg_ratio: Math.round(avgRatio * 100) / 100, dl_speed, up_speed, disk_used_gb, disk_total_gb, traffic_used_pct, traffic_reset_date });
 });
 
 // ============================================================
 // ROUTE STATUT CONNEXIONS
-// Vérifie en parallèle l'accessibilité des trois services externes
 // ============================================================
 
-// GET /api/connections — ping en parallèle de qBittorrent, C411 et Ultra.cc (retourne 'ok' ou 'error')
-app.get(`${cfg.baseurl}/api/connections`, requireAuth, async (req, res) => {
-  const [qbit, c411, ultracc] = await Promise.allSettled([
-    qbitRequest('get', '/app/version').then(() => 'ok'),
+// GET /api/connections
+app.get(`${cfg.baseurl}/api/connections`, auth.requireAuth, async (req, res) => {
+  const [qbitRes, c411Res, ultraccRes] = await Promise.allSettled([
+    qbit.qbitRequest('get', '/app/version').then(() => 'ok'),
     axios.get(cfg.c411.url, { params: { apikey: cfg.c411.apikey, t: 'caps' }, timeout: 8000 }).then(() => 'ok'),
-    getUltraccStats().then(() => 'ok'),
+    ultracc.getUltraccStats().then(() => 'ok'),
   ]);
   res.json({
-    qbittorrent: qbit.status    === 'fulfilled' ? 'ok' : 'error',
-    c411:        c411.status    === 'fulfilled' ? 'ok' : 'error',
-    ultracc:     ultracc.status === 'fulfilled' ? 'ok' : 'error',
+    qbittorrent: qbitRes.status    === 'fulfilled' ? 'ok' : 'error',
+    c411:        c411Res.status    === 'fulfilled' ? 'ok' : 'error',
+    ultracc:     ultraccRes.status === 'fulfilled' ? 'ok' : 'error',
   });
 });
 
 // ============================================================
 // ROUTES CLEANER
-// Déclenchement manuel, consultation du statut et mise à jour du planning du nettoyeur
 // ============================================================
 
-// GET /api/cleaner/status — retourne le statut courant du module cleaner (last_run, enabled, etc.)
-app.get(`${cfg.baseurl}/api/cleaner/status`, requireAuth, (req, res) => {
+// GET /api/cleaner/status
+app.get(`${cfg.baseurl}/api/cleaner/status`, auth.requireAuth, (req, res) => {
   res.json(cleaner.getStatus());
 });
 
 let lastCleanerRunAt = 0;
 
-// POST /api/cleaner/run — déclenche un nettoyage immédiat (rate-limit : 1 toutes les 30 secondes)
-app.post(`${cfg.baseurl}/api/cleaner/run`, requireAuth, async (req, res) => {
+// POST /api/cleaner/run
+app.post(`${cfg.baseurl}/api/cleaner/run`, auth.requireAuth, async (req, res) => {
   if (Date.now() - lastCleanerRunAt < 30000) return res.status(429).json({ error: 'Réessayez dans quelques secondes' });
   lastCleanerRunAt = Date.now();
   try {
@@ -962,8 +637,8 @@ app.post(`${cfg.baseurl}/api/cleaner/run`, requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/cleaner/schedule — met à jour l'intervalle et l'état activé/désactivé du nettoyeur automatique
-app.post(`${cfg.baseurl}/api/cleaner/schedule`, requireAuth, (req, res) => {
+// POST /api/cleaner/schedule
+app.post(`${cfg.baseurl}/api/cleaner/schedule`, auth.requireAuth, (req, res) => {
   const { interval_hours, enabled } = req.body;
   const hours = Math.max(1, Math.min(8760, parseInt(interval_hours) || 1));
   cfg.auto_clean = { ...cfg.auto_clean, interval_hours: hours, enabled: !!enabled };
@@ -974,164 +649,52 @@ app.post(`${cfg.baseurl}/api/cleaner/schedule`, requireAuth, (req, res) => {
 });
 
 // ============================================================
-// AUTO-GRAB
-// Logique de grab automatique : état en mémoire, exécution et planification du timer serveur
+// ROUTES AUTO-GRAB
 // ============================================================
 
-let autoGrabStatus = {
-  enabled:          false,
-  last_run:         cfg.auto_grab?.last_run          || null,
-  last_grab_count:  cfg.auto_grab?.last_grab_count   ?? 0,
-  grabs_today:      0,
-  grabs_date:       null,
-  last_grabbed:     [],
-  running:          false,
-};
+// GET /api/auto-grab/status
+app.get(`${cfg.baseurl}/api/auto-grab/status`, auth.requireAuth, (req, res) => {
+  res.json(grab.getStatus());
+});
 
-/**
- * Exécute un cycle complet d'auto-grab :
- * 1. Vérifie les limites journalières et le nombre de slots disponibles
- * 2. Récupère le top 100 de C411
- * 3. Filtre les candidats selon les règles actives (taille, leechers, seeders, déjà présents)
- * 4. Soumet les torrents éligibles à qBittorrent dans l'ordre décroissant de leechers
- * 5. Met à jour nameMap, categoryMap et torrentList pour chaque torrent grabé
- * Un mutex simple (autoGrabStatus.running) empêche les exécutions concurrentes.
- * @returns {number} Nombre de torrents effectivement grabés
- */
-async function runAutoGrab() {
-  if (autoGrabStatus.running) return 0;
-  autoGrabStatus.running = true;
-  let grabbed = 0;
+// POST /api/auto-grab/config
+app.post(`${cfg.baseurl}/api/auto-grab/config`, auth.requireAuth, (req, res) => {
+  const { enabled } = req.body;
+  grab.setEnabled(!!enabled);
+  cfg.auto_grab.enabled = !!enabled;
+  saveCfg();
+  console.log(`[auto-grab] enabled=${!!enabled}`);
+  res.json({ ok: true, ...grab.getStatus() });
+});
+
+let lastAutoGrabRunAt = 0;
+
+// POST /api/auto-grab/run
+app.post(`${cfg.baseurl}/api/auto-grab/run`, auth.requireAuth, async (req, res) => {
+  if (Date.now() - lastAutoGrabRunAt < 30000) return res.status(429).json({ error: 'Réessayez dans quelques secondes' });
+  lastAutoGrabRunAt = Date.now();
   try {
-    // Utilise cfg en mémoire (déjà déchiffré) — jamais le fichier disque
-    const { grab_limit_per_day, size_max_gb, active_max, min_leechers, min_seeders } = cfg.auto_grab.rules || {};
-    const rulesOn = cfg.auto_grab.rules_on || {};
-    const isRuleOn = (k) => rulesOn[k] !== false;
-
-    // Remise à zéro du compteur journalier si nouveau jour
-    const today = new Date().toISOString().split('T')[0];
-    if (autoGrabStatus.grabs_date !== today) {
-      autoGrabStatus.grabs_today = 0;
-      autoGrabStatus.grabs_date  = today;
+    const source  = req.body?.source || 'auto';
+    const grabbed = await grab.runAutoGrab(source);
+    if (grabbed > 0) {
+      appendHistory('grab', grabbed, source, grab.getStatus().last_grabbed || []);
     }
-
-    console.log('[auto-grab] Démarrage');
-
-    const limit     = isRuleOn('grab_limit_per_day') ? (grab_limit_per_day ?? 20) : Infinity;
-    const remaining = isFinite(limit) ? limit - autoGrabStatus.grabs_today : Infinity;
-    if (isFinite(remaining) && remaining <= 0) {
-      console.log('[auto-grab] Limite journalière atteinte');
-      return 0;
-    }
-
-    let torrents = [];
-    try {
-      torrents = await qbitRequest('get', '/torrents/info');
-    } catch(e) {
-      console.error('[auto-grab] qBittorrent inaccessible :', e.message);
-      return 0;
-    }
-    const existingHashes = new Set(torrents.map(t => t.hash.toLowerCase()));
-
-    const maxActive      = isRuleOn('active_max') && active_max != null ? active_max : null;
-    // Si aucune des deux limites n'est active, on cap à 100 par sécurité
-    const slotsAvailable = maxActive != null ? Math.max(0, maxActive - torrents.length) : (isFinite(remaining) ? remaining : 100);
-    if (slotsAvailable <= 0) {
-      console.log(`[auto-grab] Limite active atteinte (${torrents.length}/${maxActive})`);
-      return 0;
-    }
-
-    let list = [];
-    try {
-      const r      = await axios.get(cfg.c411.url, {
-        params: { apikey: cfg.c411.apikey, t: 'search', q: '', limit: 100 },
-        timeout: 15000
-      });
-      const parsed = xmlParser.parse(r.data);
-      const items  = parsed?.rss?.channel?.item || [];
-      list = (Array.isArray(items) ? items : [items]).flatMap(item => {
-        const attrs    = [].concat(item['torznab:attr'] || []);
-        const attr     = (name) => attrs.find(a => a['@_name'] === name)?.['@_value'];
-        const infohash = (attr('infohash') || '').toLowerCase();
-        const link     = item.enclosure?.['@_url'] || '';
-        if (!link || !infohash) return [];
-        const seeders  = parseInt(attr('seeders') || 0);
-        const peers    = parseInt(attr('peers')   || 0);
-        return [{
-          name:     item.title,
-          size:     parseInt(attr('size') || item.size || 0),
-          leechers: Math.max(0, peers - seeders),
-          seeders,
-          infohash,
-          link,
-          page_url: item.link || '',
-        }];
-      });
-    } catch(e) {
-      console.error('[auto-grab] C411 inaccessible :', e.message);
-      return 0;
-    }
-
-    const sizeLimitBytes = isRuleOn('size_max_gb') && size_max_gb ? size_max_gb * 1e9 : Infinity;
-    // Nombre maximum de torrents à graber lors de ce cycle
-    const canGrab        = Math.min(isFinite(remaining) ? remaining : 100, slotsAvailable);
-    // Filtrage : exclusion des déjà présents, respect des règles actives, tri par popularité
-    const candidates     = list
-      .filter(t => !existingHashes.has(t.infohash))
-      .filter(t => t.size <= sizeLimitBytes)
-      .filter(t => !isRuleOn('min_leechers') || min_leechers == null || t.leechers >= min_leechers)
-      .filter(t => !isRuleOn('min_seeders')  || min_seeders  == null || t.seeders  >= min_seeders)
-      .sort((a, b) => b.leechers - a.leechers)
-      .slice(0, canGrab);
-
-    autoGrabStatus.last_grabbed = [];
-    let nameMapDirty = false;
-    let catMapDirty  = false;
-    const grabbedItems = [];
-    for (const t of candidates) {
-      try {
-        await qbitRequest('post', '/torrents/add', `urls=${encodeURIComponent(t.link)}`);
-        if (t.infohash) {
-          const lhash = t.infohash.toLowerCase();
-          nameMap[lhash] = t.name; nameMapDirty = true;
-          if (t.category != null) { categoryMap[lhash] = String(t.category); catMapDirty = true; }
-        }
-        autoGrabStatus.grabs_today++;
-        autoGrabStatus.last_grabbed.push({ name: t.name, url: t.page_url || null });
-        grabbedItems.push({ hash: t.infohash, name: t.name, url: t.page_url || null });
-        grabbed++;
-        console.log(`[auto-grab] Grabé : ${t.name}`);
-      } catch(e) {
-        console.error(`[auto-grab] Erreur grab "${t.name}" : ${e.message}`);
-      }
-    }
-    if (nameMapDirty) saveNameMap();
-    if (catMapDirty)  saveCategoryMap();
-    if (grabbedItems.length) appendTorrentList(grabbedItems);
+    res.json({ ok: true, grabbed, ...grab.getStatus() });
   } catch(e) {
-    console.error('[auto-grab]', e.message);
-  } finally {
-    autoGrabStatus.last_run             = new Date().toISOString();
-    autoGrabStatus.last_grab_count      = grabbed;
-    autoGrabStatus.running              = false;
-    cfg.auto_grab.last_run           = autoGrabStatus.last_run;
-    cfg.auto_grab.last_grab_count    = grabbed;
-    saveCfg();
-    console.log(`[auto-grab] Terminé — ${grabbed} grabé(s)`);
+    res.status(500).json({ error: 'Erreur serveur interne' });
   }
-  return grabbed;
-}
+});
 
-// GET /api/history — retourne l'historique complet des actions (grab, clean, delete)
-app.get(`${cfg.baseurl}/api/history`, requireAuth, (req, res) => {
+// GET /api/history
+app.get(`${cfg.baseurl}/api/history`, auth.requireAuth, (req, res) => {
   try {
     const hist = JSON.parse(fs.readFileSync(HISTORY_PATH));
     res.json(hist);
   } catch { res.json([]); }
 });
 
-// DELETE /api/history — supprimer une entrée par sa date (identifiant unique)
-app.delete(`${cfg.baseurl}/api/history`, requireAuth, (req, res) => {
+// DELETE /api/history
+app.delete(`${cfg.baseurl}/api/history`, auth.requireAuth, (req, res) => {
   const { date } = req.body;
   if (!date) return res.status(400).json({ error: 'date requis' });
   try {
@@ -1146,13 +709,13 @@ app.delete(`${cfg.baseurl}/api/history`, requireAuth, (req, res) => {
   } catch(e) { res.status(500).json({ error: 'Erreur serveur interne' }); }
 });
 
-// GET /api/grabbed-torrents — retourne la liste plate des torrents grabés (max 500, triés du plus récent)
-app.get(`${cfg.baseurl}/api/grabbed-torrents`, requireAuth, (req, res) => {
+// GET /api/grabbed-torrents
+app.get(`${cfg.baseurl}/api/grabbed-torrents`, auth.requireAuth, (req, res) => {
   res.json(torrentList);
 });
 
-// DELETE /api/grabbed-torrents — supprime une entrée de la liste par son hash (sans toucher qBittorrent)
-app.delete(`${cfg.baseurl}/api/grabbed-torrents`, requireAuth, (req, res) => {
+// DELETE /api/grabbed-torrents
+app.delete(`${cfg.baseurl}/api/grabbed-torrents`, auth.requireAuth, (req, res) => {
   const { hash } = req.body;
   if (!hash) return res.status(400).json({ error: 'hash requis' });
   torrentList = torrentList.filter(t => t.hash !== hash);
@@ -1164,46 +727,59 @@ app.delete(`${cfg.baseurl}/api/grabbed-torrents`, requireAuth, (req, res) => {
   } catch(e) { res.status(500).json({ error: 'Erreur serveur interne' }); }
 });
 
-// GET /api/auto-grab/status — retourne l'état courant de l'auto-grab (enabled, last_run, compteurs)
-app.get(`${cfg.baseurl}/api/auto-grab/status`, requireAuth, (req, res) => {
-  res.json({ ...autoGrabStatus });
-});
+// ============================================================
+// ROUTES SECRETS
+// ============================================================
 
-// POST /api/auto-grab/config — active ou désactive l'auto-grab sans modifier l'intervalle
-app.post(`${cfg.baseurl}/api/auto-grab/config`, requireAuth, (req, res) => {
-  const { enabled } = req.body;
-  autoGrabStatus.enabled = !!enabled;
-  cfg.auto_grab.enabled = autoGrabStatus.enabled;
-  saveCfg();
-  console.log(`[auto-grab] enabled=${autoGrabStatus.enabled}`);
-  res.json({ ok: true, ...autoGrabStatus });
-});
-
-let lastAutoGrabRunAt = 0;
-
-// POST /api/auto-grab/run — déclenche un auto-grab immédiat (rate-limit : 1 toutes les 30 secondes)
-app.post(`${cfg.baseurl}/api/auto-grab/run`, requireAuth, async (req, res) => {
-  if (Date.now() - lastAutoGrabRunAt < 30000) return res.status(429).json({ error: 'Réessayez dans quelques secondes' });
-  lastAutoGrabRunAt = Date.now();
-  try {
-    const source  = req.body?.source || 'auto';
-    const grabbed = await runAutoGrab();
-    if (grabbed > 0) {
-      appendHistory('grab', grabbed, source, autoGrabStatus.last_grabbed || []);
-    }
-    res.json({ ok: true, grabbed, ...autoGrabStatus });
-  } catch(e) {
-    res.status(500).json({ error: 'Erreur serveur interne' });
+// POST /api/login
+app.post(`${cfg.baseurl}/api/login`, async (req, res) => {
+  const ip = req.ip;
+  if (auth.checkBruteForce(ip)) {
+    return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans 15 minutes.' });
   }
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Champs manquants' });
+  if (username !== cfg.auth.username) {
+    auth.recordFailedLogin(ip);
+    return res.status(401).json({ error: 'Identifiants incorrects' });
+  }
+  const ok = await bcrypt.compare(password, cfg.auth.password_hash);
+  if (!ok) {
+    auth.recordFailedLogin(ip);
+    return res.status(401).json({ error: 'Identifiants incorrects' });
+  }
+  auth.resetLoginAttempts(ip);
+  const token = jwt.sign({ username }, auth.getJwtSecret(), { expiresIn: cfg.auth.token_expiry || '24h', algorithm: 'HS256' });
+  res.cookie('seedash_token', token, {
+    httpOnly: true,
+    secure:   req.secure || req.headers['x-forwarded-proto'] === 'https',
+    sameSite: 'Strict',
+    maxAge:   24 * 60 * 60 * 1000,
+  });
+  res.json({ ok: true });
 });
 
-// ============================================================
-// ROUTES SECRETS (connexions & API)
-// Lecture et écriture des credentials des services externes, toujours masqués en lecture
-// ============================================================
+// POST /api/change-password
+app.post(`${cfg.baseurl}/api/change-password`, auth.requireAuth, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) return res.status(400).json({ error: 'Champs manquants' });
+  if (new_password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (min 8 caractères)' });
+  const ok = await bcrypt.compare(current_password, cfg.auth.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
+  cfg.auth.password_hash = await bcrypt.hash(new_password, 12);
+  cfg.auth.issued_after = Math.floor(Date.now() / 1000);
+  saveConn();
+  res.json({ ok: true });
+});
 
-// GET /api/config/secrets — retourne les credentials masqués (jamais les valeurs en clair)
-app.get(`${cfg.baseurl}/api/config/secrets`, requireAuth, (req, res) => {
+// POST /api/logout
+app.post(`${cfg.baseurl}/api/logout`, (req, res) => {
+  res.clearCookie('seedash_token', { sameSite: 'Strict' });
+  res.json({ ok: true });
+});
+
+// GET /api/config/secrets
+app.get(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
   res.json({
     c411_apikey:   maskSecret(cfg.c411?.apikey),
     qbit_url:      cfg.qbittorrent?.url      || '',
@@ -1214,26 +790,17 @@ app.get(`${cfg.baseurl}/api/config/secrets`, requireAuth, (req, res) => {
   });
 });
 
-/**
- * Vérifie qu'une chaîne est une URL HTTP(S) valide.
- * Utilisé pour valider les URLs de service (qBittorrent, Ultra.cc) avant de les sauvegarder.
- * @returns {boolean} true si l'URL est valide et utilise le protocole http ou https
- */
-function isHttpUrl(s) {
-  try { const u = new URL(s); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; }
-}
-
-// POST /api/config/secrets — met à jour les credentials (champs vides ignorés, URLs validées)
-app.post(`${cfg.baseurl}/api/config/secrets`, requireAuth, (req, res) => {
+// POST /api/config/secrets
+app.post(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
   const { c411_apikey, qbit_url, qbit_username, qbit_password, ultracc_url, ultracc_token } = req.body;
   if (qbit_url    && !isHttpUrl(qbit_url))    return res.status(400).json({ error: 'qbit_url invalide (doit commencer par http:// ou https://)' });
   if (ultracc_url && !isHttpUrl(ultracc_url)) return res.status(400).json({ error: 'ultracc_url invalide (doit commencer par http:// ou https://)' });
   if (c411_apikey)   cfg.c411.apikey          = c411_apikey;
   if (qbit_url)      cfg.qbittorrent.url       = qbit_url;
   if (qbit_username) cfg.qbittorrent.username  = qbit_username;
-  if (qbit_password) { cfg.qbittorrent.password = qbit_password; qbitCookie = null; }
-  if (ultracc_url)   { cfg.ultracc_api.url      = ultracc_url;   ultraccCache = { data: null, lastFetch: 0 }; }
-  if (ultracc_token) { cfg.ultracc_api.token    = ultracc_token; ultraccCache = { data: null, lastFetch: 0 }; }
+  if (qbit_password) { cfg.qbittorrent.password = qbit_password; qbit.clearCookie(); }
+  if (ultracc_url)   { cfg.ultracc_api.url      = ultracc_url;   ultracc.invalidateCache(); }
+  if (ultracc_token) { cfg.ultracc_api.token    = ultracc_token; ultracc.invalidateCache(); }
   saveConn();
   console.log('[connections] Connexions mises à jour');
   res.json({ ok: true });
@@ -1241,117 +808,35 @@ app.post(`${cfg.baseurl}/api/config/secrets`, requireAuth, (req, res) => {
 
 // ============================================================
 // ROUTES AUTO-REFRESH
-// Configuration de l'intervalle et de l'état de l'auto-grab (alias de /api/auto-grab/config)
 // ============================================================
 
-// GET /api/auto-refresh — retourne l'état et l'intervalle de l'auto-grab
-app.get(`${cfg.baseurl}/api/auto-refresh`, requireAuth, (req, res) => {
-  res.json({ enabled: cfg.auto_grab.enabled, interval_minutes: cfg.auto_grab.interval_minutes, last_run: autoGrabStatus.last_run, last_grab_count: autoGrabStatus.last_grab_count });
+// GET /api/auto-refresh
+app.get(`${cfg.baseurl}/api/auto-refresh`, auth.requireAuth, (req, res) => {
+  const st = grab.getStatus();
+  res.json({ enabled: cfg.auto_grab.enabled, interval_minutes: cfg.auto_grab.interval_minutes, last_run: st.last_run, last_run_source: st.last_run_source || 'auto', last_grab_count: st.last_grab_count, top_cache_date: topCache.date || null });
 });
 
-// POST /api/auto-refresh — met à jour l'intervalle et l'état de l'auto-grab, recrée le timer serveur
-app.post(`${cfg.baseurl}/api/auto-refresh`, requireAuth, (req, res) => {
+// POST /api/auto-refresh
+app.post(`${cfg.baseurl}/api/auto-refresh`, auth.requireAuth, (req, res) => {
   const { enabled, interval_minutes } = req.body;
   cfg.auto_grab.enabled          = !!enabled;
   cfg.auto_grab.interval_minutes = Math.max(1, parseInt(interval_minutes) || 15);
   saveCfg();
-  scheduleAutoGrab();
+  grab.scheduleAutoGrab(appendHistory);
   console.log(`[auto-refresh] enabled=${cfg.auto_grab.enabled}, interval=${cfg.auto_grab.interval_minutes}min`);
   res.json({ ok: true, enabled: cfg.auto_grab.enabled, interval_minutes: cfg.auto_grab.interval_minutes });
 });
 
 // ============================================================
-// AUTO-GRAB TIMER SERVEUR
-// Timer setInterval qui vérifie chaque minute si l'intervalle configuré est écoulé
+// DÉMARRAGE
 // ============================================================
-let autoGrabTimer = null;
-
-/**
- * Crée (ou recrée) le timer serveur de l'auto-grab.
- * Annule le timer précédent s'il existe, puis démarre un nouveau setInterval d'1 minute.
- * À chaque tick, compare l'heure du dernier grab avec l'intervalle configuré (elapsed-time check).
- * Ne fait rien si l'auto-grab est désactivé.
- * Appelée au démarrage et à chaque modification via POST /api/auto-refresh.
- */
-function scheduleAutoGrab() {
-  if (autoGrabTimer) { clearInterval(autoGrabTimer); autoGrabTimer = null; }
-  if (!cfg.auto_grab?.enabled) {
-    console.log('[auto-grab] timer désactivé');
-    return;
-  }
-  autoGrabTimer = setInterval(async () => {
-    const intervalMs = (cfg.auto_grab.interval_minutes || 15) * 60 * 1000;
-    const lastRun    = autoGrabStatus.last_run ? new Date(autoGrabStatus.last_run).getTime() : 0;
-    // Déclenche le grab uniquement si le délai configuré est écoulé depuis le dernier run
-    if (Date.now() - lastRun >= intervalMs) {
-      const grabbed = await runAutoGrab();
-      if (grabbed > 0) appendHistory('grab', grabbed, 'auto', autoGrabStatus.last_grabbed || []);
-    }
-  }, 60 * 1000); // vérifie toutes les minutes
-  console.log(`[auto-grab] timer serveur : toutes les ${cfg.auto_grab.interval_minutes}min`);
-}
-
-// ============================================================
-// START
-// Initialisation des modules, démarrage des timers et lancement du serveur HTTP
-// ============================================================
-
-/**
- * Enregistre un échec de connexion pour une IP et applique le blocage après 5 tentatives.
- * Après 5 échecs, l'IP est bloquée pendant 15 minutes.
- * Nettoyage périodique assuré par le setInterval ci-dessous.
- */
-function recordFailedLogin(ip) {
-  const entry = loginAttempts.get(ip) || { count: 0, lastAttempt: 0 };
-  entry.count++;
-  entry.lastAttempt = Date.now();
-  if (entry.count >= 5) entry.blockedUntil = Date.now() + 15 * 60 * 1000;
-  loginAttempts.set(ip, entry);
-}
-
-// Nettoyage périodique de la Map loginAttempts toutes les 5 minutes (évite les fuites mémoire)
-// Supprime les entrées expirées : blocage expiré ou dernière tentative > 15 min
-setInterval(() => {
-  const now = Date.now();
-  const TTL = 15 * 60 * 1000;
-  for (const [ip, entry] of loginAttempts) {
-    const expired = entry.blockedUntil ? now > entry.blockedUntil : now - (entry.lastAttempt || 0) > TTL;
-    if (expired) loginAttempts.delete(ip);
-  }
-}, 5 * 60 * 1000);
-
-initConfig();
-
-// Callback appelé par cleaner.js après chaque cycle de nettoyage terminé.
-// Persiste la config, nettoie les maps (nameMap, categoryMap, uploadHistory)
-// des hashes supprimés, et ajoute une entrée dans l'historique si des torrents ont été supprimés.
-cleaner.setRunCompleteCallback((st) => {
-  saveCfg();
-  if (st.last_deleted_hashes?.length) {
-    let nameMapDirty = false, catMapDirty = false, uploadDirty = false;
-    for (const h of st.last_deleted_hashes) {
-      if (nameMap[h])        { delete nameMap[h];        nameMapDirty = true; }
-      if (categoryMap[h])    { delete categoryMap[h];    catMapDirty  = true; }
-      if (uploadHistory[h])  { delete uploadHistory[h];  uploadDirty  = true; }
-    }
-    if (nameMapDirty) saveNameMap();
-    if (catMapDirty)  saveCategoryMap();
-    if (uploadDirty)  saveUploadHistory();
-  }
-  if (st.last_deleted_count > 0) {
-    appendHistory('clean', st.last_deleted_count, st.last_run_type, st.last_deleted_names || []);
-  }
-});
 
 /**
  * Purge au démarrage les entrées obsolètes de nameMap, categoryMap et uploadHistory.
- * Supprime toutes les entrées dont le hash n'est plus dans qBittorrent (torrent supprimé manuellement hors SeeDash).
- * Effectue aussi un backfill de categoryMap depuis le cache top leechers pour les torrents actifs sans catégorie.
- * Si qBittorrent est inaccessible, la purge est silencieusement ignorée.
  */
 async function pruneNameMap() {
   try {
-    const torrents     = await qbitRequest('get', '/torrents/info');
+    const torrents     = await qbit.qbitRequest('get', '/torrents/info');
     const activeHashes = new Set(torrents.map(t => t.hash.toLowerCase()));
     const before       = Object.keys(nameMap).length;
     for (const h of Object.keys(nameMap)) {
@@ -1363,7 +848,6 @@ async function pruneNameMap() {
     for (const h of Object.keys(categoryMap)) {
       if (!activeHashes.has(h)) delete categoryMap[h];
     }
-    // Backfill depuis topCache pour les hashes actifs sans catégorie connue
     let catBackfilled = 0;
     for (const item of topCache.items || []) {
       if (!item.infohash || item.category == null) continue;
@@ -1385,12 +869,10 @@ async function pruneNameMap() {
   }
 }
 
-// Sampling upload toutes les 5 minutes : enregistre un point [timestamp_s, bytes_uploadés]
-// pour chaque torrent actif, utilisé pour le graphique de progression d'upload.
-// Purge également les entrées de torrents qui ne sont plus actifs dans qBittorrent.
+// Sampling upload toutes les 5 minutes
 setInterval(async () => {
   try {
-    const torrents = await qbitRequest('get', '/torrents/info');
+    const torrents = await qbit.qbitRequest('get', '/torrents/info');
     const now      = Math.floor(Date.now() / 1000);
     for (const t of torrents) {
       const hash = t.hash.toLowerCase();
@@ -1403,8 +885,7 @@ setInterval(async () => {
   } catch(e) { /* qBit inaccessible — silencieux */ }
 }, 5 * 60 * 1000);
 
-// Middleware d'erreur global — doit être déclaré après toutes les routes
-// En production, masque le message d'erreur interne pour éviter les fuites d'information
+// Middleware d'erreur global
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
@@ -1412,18 +893,43 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Séquence de démarrage asynchrone :
-// 1. initAuth() — génère les secrets et hash de mot de passe si absents
-// 2. decryptSecrets() — déchiffre les secrets AES-256-GCM en mémoire
-// 3. saveCfg() — persiste l'état initial (notamment les valeurs générées par initAuth)
-// 4. scheduleAutoGrab() — démarre le timer d'auto-grab si activé
-// 5. pruneNameMap() — purge les entrées obsolètes au démarrage
-// 6. app.listen() — démarre le serveur HTTP
-initAuth().then(() => {
-  decryptSecrets();
+// Callback cleaner.js
+cleaner.setRunCompleteCallback((st) => {
   saveCfg();
-  autoGrabStatus.enabled = cfg.auto_grab?.enabled === true;
-  scheduleAutoGrab();
+  if (st.last_deleted_hashes?.length) {
+    let nameMapDirty = false, catMapDirty = false, uploadDirty = false;
+    for (const h of st.last_deleted_hashes) {
+      if (nameMap[h])        { delete nameMap[h];        nameMapDirty = true; }
+      if (categoryMap[h])    { delete categoryMap[h];    catMapDirty  = true; }
+      if (uploadHistory[h])  { delete uploadHistory[h];  uploadDirty  = true; }
+    }
+    if (nameMapDirty) saveNameMap();
+    if (catMapDirty)  saveCategoryMap();
+    if (uploadDirty)  saveUploadHistory();
+  }
+  if (st.last_deleted_count > 0) {
+    appendHistory('clean', st.last_deleted_count, st.last_run_type, st.last_deleted_names || []);
+  }
+});
+
+// Séquence de démarrage
+initConfig();
+
+// Initialisation des modules lib
+auth.init(cfg);
+qbit.init(cfg);
+ultracc.init(cfg);
+grab.init(cfg, { nameMap, categoryMap }, {
+  getTopCache, setTopCache,
+  saveCfg, saveNameMap, saveCategoryMap, appendTorrentList, appendHistory,
+  qbitRequest: qbit.qbitRequest,
+  isCleanRunning: () => cleaner.isRunning(),
+}, TOP_CACHE_PATH);
+
+auth.initAuth(saveConn).then(() => {
+  auth.decryptSecrets();
+  saveCfg();
+  grab.scheduleAutoGrab(appendHistory);
   pruneNameMap();
 
   app.listen(cfg.port, '0.0.0.0', () => {

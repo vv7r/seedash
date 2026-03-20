@@ -28,6 +28,7 @@ const status = {
 let currentTask    = null;
 let qbitCookie     = null;
 let onRunComplete  = null;
+let cleanRunning   = false;
 
 // ── Logger ───────────────────────────────────────────────
 /**
@@ -91,6 +92,59 @@ async function qbitRequest(cfg, method, endpoint, data = null) {
 }
 
 // ── Logique de nettoyage ─────────────────────────────────
+
+/**
+ * Détermine si un torrent doit être supprimé selon les règles et l'historique d'upload.
+ * Fonction pure exportée — ne dépend d'aucun état global ni d'I/O.
+ *
+ * @param {Object} t              - Torrent { hash, ratio, added_on }
+ * @param {Object} rules          - cfg.auto_clean.rules (valeurs numériques)
+ * @param {Object} rulesOn        - cfg.auto_clean.rules_on (clé → bool ; absent = actif)
+ * @param {Object} uploadHistory  - Map hash.toLowerCase() → [[timestamp_s, cumul_bytes], ...]
+ * @param {number} now            - Timestamp Unix courant en secondes
+ * @returns {boolean} true si le torrent doit être supprimé
+ */
+function shouldDelete(t, rules, rulesOn, uploadHistory, now) {
+  const { ratio_min, ratio_max, age_min_hours, age_max_hours, upload_min_mb, upload_window_hours } = rules || {};
+  const isOn = (k) => (rulesOn || {})[k] !== false;
+
+  const ageMin      = (age_min_hours || 48) * 3600;
+  const ageMax      = isOn('age_max_hours') && age_max_hours != null ? age_max_hours * 3600 : null;
+  const ratioMax    = isOn('ratio_max')     && ratio_max    != null ? ratio_max : null;
+  const uploadMinMb = isOn('upload_min_mb') && upload_min_mb > 0   ? upload_min_mb : null;
+  const uploadWinSec = (upload_window_hours || 48) * 3600;
+
+  const age = now - t.added_on;
+
+  // Conditions minimales — toutes doivent être satisfaites simultanément si actives
+  const ratioCheck = isOn('ratio_min') ? t.ratio >= ratio_min : true;
+  const ageCheck   = isOn('age_min_hours') ? age >= ageMin : true;
+
+  // uploadCheck : faible upload sur la fenêtre glissante
+  let uploadCheck = true; // neutre si règle désactivée
+  if (uploadMinMb !== null) {
+    const points   = (uploadHistory || {})[t.hash.toLowerCase()] || [];
+    const winStart = now - uploadWinSec;
+    const inWin    = points.filter(([ts]) => ts >= winStart);
+    // L'historique doit couvrir toute la fenêtre (premier point antérieur à winStart)
+    // et contenir au moins 2 mesures dans la fenêtre
+    const historyCoversWindow = points.length > 0 && points[0][0] <= winStart;
+    uploadCheck = (historyCoversWindow && inWin.length >= 2)
+      ? (inWin[inWin.length - 1][1] - inWin[0][1]) / 1e6 < uploadMinMb
+      : false;
+  }
+
+  // normalCondition : ET sur les règles minimales actives ; rien à supprimer si aucune active
+  const anyMinOn        = isOn('ratio_min') || isOn('age_min_hours') || uploadMinMb !== null;
+  const normalCondition = anyMinOn && ratioCheck && ageCheck && uploadCheck;
+
+  // Seuils maximaux : OU indépendant, force la suppression dès dépassement
+  const maxCondition      = ageMax   !== null && age       >= ageMax;
+  const ratioMaxCondition = ratioMax !== null && t.ratio   >= ratioMax;
+
+  return normalCondition || maxCondition || ratioMaxCondition;
+}
+
 /**
  * Exécute un cycle de nettoyage : récupère tous les torrents qBittorrent,
  * évalue chaque torrent contre les règles actives, et supprime les torrents éligibles.
@@ -100,6 +154,8 @@ async function qbitRequest(cfg, method, endpoint, data = null) {
  * @returns {Promise<number>} Nombre de torrents supprimés.
  */
 async function runClean(source = 'auto') {
+  if (cleanRunning) { log('Nettoyage déjà en cours — ignoré'); return 0; }
+  cleanRunning = true;
   const cfg = {
     ...JSON.parse(fs.readFileSync(CFG_PATH)),
     ...(() => { try { return JSON.parse(fs.readFileSync(CONN_PATH)); } catch { return {}; } })(),
@@ -109,20 +165,15 @@ async function runClean(source = 'auto') {
     if (cfg.qbittorrent?.username) cfg.qbittorrent.username = decrypt(cfg.qbittorrent.username, key);
     if (cfg.qbittorrent?.password) cfg.qbittorrent.password = decrypt(cfg.qbittorrent.password, key);
   }
-  const { ratio_min, ratio_max, age_min_hours, age_max_hours, upload_min_mb, upload_window_hours } = cfg.auto_clean?.rules || {};
-  // rules_on stocke l'état activé/désactivé séparément des valeurs.
-  // Par défaut (clé absente) une règle est considérée active.
-  const rulesOn       = cfg.auto_clean?.rules_on || {};
-  const isOn          = (k) => rulesOn[k] !== false;
-  const ageMin        = (age_min_hours || 48) * 3600;
-  const ageMax        = isOn('age_max_hours') && age_max_hours != null ? age_max_hours * 3600 : null;
-  const ratioMax      = isOn('ratio_max') && ratio_max != null ? ratio_max : null;
-  const uploadMinMb   = isOn('upload_min_mb') && upload_min_mb > 0 ? upload_min_mb : null;
-  const uploadWinSec  = (upload_window_hours || 48) * 3600;
-  // `age` = temps écoulé depuis l'ajout (t.added_on), pas le seedtime réel.
-  // Un torrent pausé voit son âge compter normalement.
-  const now    = Math.floor(Date.now() / 1000);
 
+  const rules   = cfg.auto_clean?.rules   || {};
+  const rulesOn = cfg.auto_clean?.rules_on || {};
+  // `age` = temps écoulé depuis l'ajout (t.added_on), pas le seedtime réel.
+  const now = Math.floor(Date.now() / 1000);
+
+  // Optimisation : ne charger l'historique d'upload que si la règle est active
+  const isOn        = (k) => rulesOn[k] !== false;
+  const uploadMinMb = isOn('upload_min_mb') && rules.upload_min_mb > 0 ? rules.upload_min_mb : null;
   let uploadHistory = {};
   if (uploadMinMb !== null) {
     try { uploadHistory = JSON.parse(fs.readFileSync(UPLOAD_HISTORY_PATH)); } catch {}
@@ -134,40 +185,7 @@ async function runClean(source = 'auto') {
   const deletedHashes = [];
   try {
     const torrents = await qbitRequest(cfg, 'get', '/torrents/info');
-    const toDelete = torrents.filter(t => {
-      const age = now - t.added_on;
-
-      // Conditions de base (toutes doivent être vraies simultanément si actives)
-      const ratioCheck  = isOn('ratio_min')     ? t.ratio >= ratio_min : true;
-      const ageCheck    = isOn('age_min_hours') ? age >= ageMin        : true;
-
-      // uploadCheck : faible upload sur la fenêtre glissante
-      let uploadCheck = true; // neutre si règle désactivée
-      if (uploadMinMb !== null) {
-        const points   = uploadHistory[t.hash.toLowerCase()] || [];
-        const winStart = now - uploadWinSec;
-        const inWin    = points.filter(([ts]) => ts >= winStart);
-        // L'historique doit couvrir toute la fenêtre (premier point antérieur à winStart)
-        // et contenir au moins 2 mesures dans la fenêtre
-        const historyCoversWindow = points.length > 0 && points[0][0] <= winStart;
-        uploadCheck = (historyCoversWindow && inWin.length >= 2)
-          ? (inWin[inWin.length - 1][1] - inWin[0][1]) / 1e6 < uploadMinMb
-          : false;
-      }
-
-      // normalCondition : toutes les conditions actives (ratio_min, age_min_hours, upload_min_mb)
-      // doivent être satisfaites simultanément. Si aucune n'est active, rien à supprimer.
-      const anyMinOn = isOn('ratio_min') || isOn('age_min_hours') || uploadMinMb !== null;
-      const normalCondition = anyMinOn && ratioCheck && ageCheck && uploadCheck;
-
-      // maxCondition / ratioMaxCondition : seuils maximaux déclenchant la suppression
-      // indépendamment des autres règles (utile pour forcer la rotation des vieux torrents).
-      const maxCondition      = ageMax   !== null && age >= ageMax;
-      const ratioMaxCondition = ratioMax !== null && t.ratio >= ratioMax;
-
-      // Un torrent est supprimé si au moins une condition le déclenche
-      return normalCondition || maxCondition || ratioMaxCondition;
-    });
+    const toDelete  = torrents.filter(t => shouldDelete(t, rules, rulesOn, uploadHistory, now));
 
     for (const t of toDelete) {
       try {
@@ -193,6 +211,7 @@ async function runClean(source = 'auto') {
   status.last_deleted_hashes = deletedHashes;
   log(`Terminé — ${deleted} torrent(s) supprimé(s)`);
   if (onRunComplete) onRunComplete(status);
+  cleanRunning = false;
   return deleted;
 }
 
@@ -222,7 +241,7 @@ function reschedule(newIntervalHours, enabled) {
         await runClean('auto');
       }
     }, CHECK_INTERVAL_MS);
-    log(`Planifié : toutes les ${status.interval_hours}h (vérification toutes les 5min)`);
+    log(`Planifié : toutes les ${status.interval_hours}h (vérification toutes les 1min)`);
   } else {
     log('Nettoyage automatique désactivé');
   }
@@ -251,7 +270,9 @@ init();
 // ── Exports ──────────────────────────────────────────────
 module.exports = {
   runClean,
+  shouldDelete,
   reschedule,
   getStatus: () => ({ ...status }),
   setRunCompleteCallback: (fn) => { onRunComplete = fn; },
+  isRunning: () => cleanRunning,
 };

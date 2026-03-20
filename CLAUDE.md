@@ -4,22 +4,44 @@
 
 Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS séparés dans `public/`.
 
-- **`server.js`** — Express API, auth JWT, proxy qBittorrent et Ultra.cc, timers serveur
-- **`cleaner.js`** — module indépendant, chargé par server.js, gère le timer de nettoyage
+### Serveur (`lib/`)
+
+- **`server.js`** — Express API, wiring des modules, timers auto-grab, routes
+- **`cleaner.js`** — timer de nettoyage, exporte `shouldDelete()` (fonction pure testable)
+- **`lib/auth.js`** — auth JWT, brute-force, middleware `requireAuth`, `decryptSecrets`
+- **`lib/qbit.js`** — client qBittorrent (login, request, gestion session 403)
+- **`lib/ultracc.js`** — client Ultra.cc (stats, cache TTL 120s)
+- **`lib/grab.js`** — auto-grab (cycle, timer, exporte `filterCandidates()` testable)
+- **`lib/helpers.js`** — helpers purs (`getIn`, `setIn`, `maskSecret`, `isHttpUrl`)
 - **`crypto-config.js`** — chiffrement AES-256-GCM des secrets sur disque
-- **`public/index.html`** — HTML structurel pur (aucun style ni script inline)
-- **`public/style.css`** — tout le CSS ; variables dans `:root` / `[data-theme="dark"]`
-- **`public/app.js`** — tout le JS frontend ; zéro handler inline, event delegation
-- **`public/theme-init.js`** — 3 lignes bloquantes en `<head>` pour restaurer le thème sans flash
 - **`config.json`** — config persistante, lue/écrite par le serveur à chaud (versionné dans git)
 - **`connections.json`** — secrets chiffrés + bloc auth (jwt_secret, password_hash) — ignoré par git
 - **`ecosystem.config.js`** — config PM2, injecte `JWT_SECRET` comme variable d'env (ignoré par git)
+
+### Frontend (`public/`) — ordre de chargement
+
+- **`theme-init.js`** — 3 lignes bloquantes en `<head>` pour restaurer le thème sans flash
+- **`utils.js`** — helpers purs : `he`, `fmt*`, `toast`, `showMsg`, `BASE`, `CAT_NAMES`
+- **`stats.js`** — LEDs de connexion, `loadConnections`, `updateQbitStats`, `loadStats`
+- **`charts.js`** — Chart.js : ratio chart, upload chart inline, modal agrandissement
+- **`top.js`** — top leechers, tri, sélection, auto-refresh countdown, `triggerAutoGrab`
+- **`actifs.js`** — torrents actifs, badge "prêt à supprimer", `insertChartRow`
+- **`rules.js`** — règles auto-grab/clean, historique, secrets, countdown cleaner
+- **`app.js`** — globals partagés, auth, tabs, event listeners, `startPolling`, init
+- **`index.html`** — HTML structurel pur (aucun style ni script inline)
+- **`style.css`** — tout le CSS ; variables dans `:root` / `[data-theme="dark"]`
+
+### Tests
+
+- **`tests/cleaner-logic.test.js`** — 23 tests sur `shouldDelete` (toutes les branches logiques)
+- **`tests/grab-logic.test.js`** — 21 tests sur `filterCandidates` (filtres, tri, limites)
 
 ## Commandes
 
 ```bash
 npm start              # prod
 npm run dev            # hot-reload (node --watch)
+npm test               # tests unitaires (node:test natif, 44 tests)
 pm2 reload seedash     # rechargement gracieux en production
 ```
 
@@ -117,7 +139,7 @@ Validation croisée serveur + client avant sauvegarde :
 
 Côté client (`autoFixRules()`) : corrige automatiquement la valeur invalide et affiche un toast explicatif avant de sauvegarder.
 
-## Frontend (app.js / index.html)
+## Frontend
 
 ### Historique — suppression d'entrées
 
@@ -142,7 +164,7 @@ Pattern event delegation à suivre pour les éléments dynamiques :
 - Stats globales : `setInterval` toutes les 5s — démarré après auth
 - Disque/trafic : `setInterval` toutes les 60s — démarré après auth
 - Torrents actifs : `setInterval` toutes les 5s — uniquement quand l'onglet est actif (`switchTab`)
-- `selectedGrab` : `Map<url, {name, infohash}>` (pas un Set) pour transmettre l'infohash au grab sélection multiple
+- `selectedGrab` : `Map<url, {name, infohash, category}>` (pas un Set) pour transmettre l'infohash et la catégorie au grab sélection multiple
 - Top leechers : auto-refresh visuel (appel `loadTop()`), le grab réel se fait côté serveur
 - Connexions LEDs : `setInterval` toutes les 30s — silencieux si précédent état était OK (pas de flash orange)
 
