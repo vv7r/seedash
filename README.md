@@ -174,6 +174,40 @@ pm2 delete seedash     # suppression du processus PM2
 
 ---
 
+## Tests
+
+Les tests couvrent les deux fonctions pures critiques de l'application — celles qui décident quoi supprimer et quoi grabber. Elles sont isolées de toute I/O et de tout état global, ce qui les rend fiables et rapides à exécuter.
+
+```bash
+npm test
+```
+
+Le runner est **node:test** (intégré à Node.js, aucune dépendance externe).
+
+### `tests/cleaner-logic.test.js` — 23 tests
+
+Teste `shouldDelete(torrent, rules, rulesOn, uploadHistory, now)` de `lib/cleaner.js`.
+
+Ce que les tests vérifient :
+- Les conditions minimales fonctionnent en **ET** : ratio + âge + upload doivent tous être atteints simultanément (si actifs)
+- Les seuils maximaux (`ratio_max`, `age_max_hours`) fonctionnent en **OU** indépendant et forcent la suppression dès dépassement
+- Si aucune condition minimale n'est active, rien n'est supprimé
+- La condition `upload_min_mb` exige que l'historique couvre toute la fenêtre (torrent trop récent → non éligible)
+- Les toggles `rules_on` activent/désactivent correctement chaque règle individuellement
+
+### `tests/grab-logic.test.js` — 21 tests
+
+Teste `filterCandidates(items, existingHashes, rules, rulesOn, canGrab)` de `lib/grab.js`.
+
+Ce que les tests vérifient :
+- Les torrents déjà présents dans qBittorrent sont exclus (filtre par infohash)
+- Les filtres de taille (`size_max_gb`), leechers (`min_leechers`) et seeders (`min_seeders`) excluent correctement
+- La limite journalière (`grab_limit_per_day`) et le plafond de torrents actifs (`active_max`) sont respectés
+- Le tri final est par leechers décroissants
+- `canGrab` limite le nombre de résultats retournés
+
+---
+
 ## Structure des fichiers de configuration
 
 ### `config.json` — configuration générale
