@@ -473,6 +473,7 @@ Format retourné par `GET /api/rules` :
 seedash/
 ├── server.js              — API Express, auth JWT, timers auto-grab, routes
 ├── cleaner.js             — logique de nettoyage + timer setInterval
+├── resolve-meta.js        — script autonome : résout les noms/catégories C411 manquants (node resolve-meta.js)
 ├── crypto-config.js       — chiffrement/déchiffrement AES-256-GCM
 ├── ecosystem.config.js    — config PM2 avec JWT_SECRET (ne pas committer)
 ├── config.json            — config générale : port, baseurl, auto_grab, auto_clean (versionné)
