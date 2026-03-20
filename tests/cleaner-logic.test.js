@@ -1,7 +1,7 @@
 'use strict';
 
 // Désactiver le timer auto-clean dès le require pour éviter qu'il bloque le process
-const cleaner = require('../cleaner');
+const cleaner = require('../lib/cleaner');
 cleaner.reschedule(null, false);
 
 const { shouldDelete } = cleaner;

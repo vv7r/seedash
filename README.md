@@ -398,7 +398,6 @@ Format retourné par `GET /api/rules` :
 ```
 seedash/
 ├── server.js              — API Express, auth JWT, timers auto-grab, routes
-├── cleaner.js             — logique de nettoyage + timer setInterval
 ├── resolve-meta.js        — script autonome : résout les noms/catégories C411 manquants (node resolve-meta.js)
 ├── crypto-config.js       — chiffrement/déchiffrement AES-256-GCM
 ├── ecosystem.config.js    — config PM2 minimaliste (généré au premier démarrage, ne pas committer)
@@ -408,9 +407,10 @@ seedash/
 ├── .gitignore
 ├── lib/
 │   ├── auth.js            — auth JWT, brute-force, middleware requireAuth
+│   ├── cleaner.js         — logique de nettoyage + timer setInterval
+│   ├── grab.js            — auto-grab (cycle, timer, filterCandidates)
 │   ├── qbit.js            — client qBittorrent (login, request, session)
 │   ├── ultracc.js         — client Ultra.cc (stats, cache TTL 120s)
-│   ├── grab.js            — auto-grab (cycle, timer, filterCandidates)
 │   └── helpers.js         — helpers purs (getIn, setIn, maskSecret, isHttpUrl)
 ├── public/
 │   ├── index.html         — HTML structurel pur (aucun style ni script inline)

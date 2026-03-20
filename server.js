@@ -7,7 +7,7 @@ const bcrypt       = require('bcrypt');
 const jwt          = require('jsonwebtoken');
 const helmet       = require('helmet');
 const cookieParser = require('cookie-parser');
-const cleaner      = require('./cleaner');
+const cleaner      = require('./lib/cleaner');
 const { encrypt, PREFIX } = require('./crypto-config');
 
 const helpers  = require('./lib/helpers');
