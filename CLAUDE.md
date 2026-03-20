@@ -7,7 +7,7 @@ Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS sépar
 ### Serveur (`lib/`)
 
 - **`server.js`** — Express API, wiring des modules, timers auto-grab, routes
-- **`cleaner.js`** — timer de nettoyage, exporte `shouldDelete()` (fonction pure testable)
+- **`lib/cleaner.js`** — timer de nettoyage, exporte `shouldDelete()` (fonction pure testable)
 - **`lib/auth.js`** — auth JWT, brute-force, middleware `requireAuth`, `decryptSecrets`
 - **`lib/qbit.js`** — client qBittorrent (login, request, gestion session 403)
 - **`lib/ultracc.js`** — client Ultra.cc (stats, cache TTL 120s)
