@@ -161,14 +161,6 @@ http://127.0.0.1:44962
 
 avec le sous-chemin `/seedash` (correspondant à `baseurl` dans `config.json`).
 
-### 9. Changer le mot de passe par défaut
-
-Accédez à l'interface via votre navigateur, connectez-vous avec :
-- **Identifiant :** `admin`
-- **Mot de passe :** `changeme`
-
-Allez dans l'onglet **Configuration** → section **Sécurité** → changez le mot de passe immédiatement.
-
 ### Commandes utiles
 
 ```bash
