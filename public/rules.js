@@ -339,13 +339,15 @@ async function loadSecrets() {
     document.getElementById('sec-qbit-url').value      = d.qbit_url      || '';
     document.getElementById('sec-qbit-username').value = d.qbit_username || '';
     document.getElementById('sec-ultracc-url').value   = d.ultracc_url   || '';
-    const setMask = (spanId, val) => {
-      const el = document.getElementById(spanId);
-      if (el) el.textContent = val ? `(actuel : ${val})` : '';
+    const setMask = (spanId, inputId, val) => {
+      const span  = document.getElementById(spanId);
+      const input = document.getElementById(inputId);
+      if (span)  span.textContent  = val ? `(actuel : ${val})` : '';
+      if (input) input.placeholder = val ? 'Laisser vide pour conserver' : '';
     };
-    setMask('sec-c411-apikey-cur',   d.c411_apikey);
-    setMask('sec-qbit-password-cur', d.qbit_password);
-    setMask('sec-ultracc-token-cur', d.ultracc_token);
+    setMask('sec-c411-apikey-cur',   'sec-c411-apikey',   d.c411_apikey);
+    setMask('sec-qbit-password-cur', 'sec-qbit-password', d.qbit_password);
+    setMask('sec-ultracc-token-cur', 'sec-ultracc-token', d.ultracc_token);
   } catch (e) { console.error('[secrets]', e); }
 }
 
@@ -361,7 +363,9 @@ async function saveSecrets() {
   if (v('sec-ultracc-token')) body.ultracc_token  = v('sec-ultracc-token');
   if (!Object.keys(body).length) { showMsg('secrets-msg', 'Aucune modification'); return; }
   try {
-    await fetch(BASE + '/api/config/secrets', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify(body) });
+    const r = await fetch(BASE + '/api/config/secrets', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) { showMsg('secrets-msg', d.error || 'Erreur serveur'); return; }
     document.getElementById('sec-c411-apikey').value   = '';
     document.getElementById('sec-qbit-password').value = '';
     document.getElementById('sec-ultracc-token').value = '';

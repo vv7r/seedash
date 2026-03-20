@@ -189,10 +189,9 @@ function saveConn() {
       if (v && !v.startsWith(PREFIX)) setIn(toWrite, p, encrypt(v, key));
     }
   }
-  if (process.env.JWT_SECRET && toWrite.auth) delete toWrite.auth.jwt_secret;
   const tmp = CONN_PATH + '.tmp';
   try {
-    fs.writeFileSync(tmp, JSON.stringify(toWrite, null, 2));
+    fs.writeFileSync(tmp, JSON.stringify(toWrite, null, 2), { mode: 0o600 });
     fs.renameSync(tmp, CONN_PATH);
   } catch(e) {
     console.error('[connections] ERREUR SAUVEGARDE:', e.message);
@@ -246,6 +245,10 @@ function initConfig() {
   }
   if (!cfg.auto_clean.rules)    { cfg.auto_clean.rules    = { ratio_min: 1.0, age_min_hours: 48 }; changed = true; }
   if (!cfg.auto_clean.rules_on) { cfg.auto_clean.rules_on = { ...DEFAULT_CLEAN_RULES_ON }; changed = true; }
+  // Initialiser les blocs de connexion s'ils sont absents (fresh install sans connections.json complet)
+  if (!cfg.c411)        { cfg.c411        = { url: 'https://c411.org/api/torznab', apikey: '' }; }
+  if (!cfg.qbittorrent) { cfg.qbittorrent = { url: '', username: '', password: '' }; }
+  if (!cfg.ultracc_api) { cfg.ultracc_api = { url: '', token: '' }; }
   if (changed) {
     saveCfg();
     console.log('[config] Clés manquantes initialisées et sauvegardées');
@@ -725,6 +728,42 @@ app.delete(`${cfg.baseurl}/api/grabbed-torrents`, auth.requireAuth, (req, res) =
     fs.renameSync(tmp, TORRENT_LIST_PATH);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: 'Erreur serveur interne' }); }
+});
+
+// ============================================================
+// ROUTES SETUP (premier démarrage — non protégées)
+// ============================================================
+
+// GET /api/setup/status
+app.get(`${cfg.baseurl}/api/setup/status`, (_req, res) => {
+  res.json({ setupComplete: auth.isSetupComplete() });
+});
+
+// POST /api/setup
+app.post(`${cfg.baseurl}/api/setup`, async (req, res) => {
+  if (auth.isSetupComplete()) return res.status(403).json({ error: 'Setup déjà effectué' });
+  const { username, password } = req.body;
+  const u = typeof username === 'string' ? username.trim() : '';
+  const p = typeof password === 'string' ? password : '';
+  if (!u || u.length > 32 || !/^[a-zA-Z0-9._-]+$/.test(u))
+    return res.status(400).json({ error: 'Nom d\'utilisateur invalide (1–32 caractères alphanumériques, . _ -)' });
+  if (p.length < 8)
+    return res.status(400).json({ error: 'Mot de passe trop court (min 8 caractères)' });
+  if (p.length > 72)
+    return res.status(400).json({ error: 'Mot de passe trop long (max 72 caractères)' });
+  cfg.auth.username      = u;
+  cfg.auth.password_hash = await bcrypt.hash(p, 12);
+  cfg.auth.setup_completed = true;
+  const ecoPath = path.join(__dirname, 'ecosystem.config.js');
+  if (!fs.existsSync(ecoPath)) {
+    fs.writeFileSync(ecoPath,
+      `module.exports = {\n  apps: [{ name: 'seedash', script: 'server.js' }]\n};\n`
+    );
+    console.log('[setup] ecosystem.config.js généré');
+  }
+  saveConn();
+  console.log('[setup] Configuration initiale complétée');
+  res.json({ ok: true });
 });
 
 // ============================================================

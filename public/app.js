@@ -65,9 +65,54 @@ async function doLogout() {
   showLogin();
 }
 
+/** Affiche la page de premier démarrage. */
+function showSetup() { document.getElementById('setup-screen').classList.add('active'); }
+/** Masque la page de premier démarrage. */
+function hideSetup()  { document.getElementById('setup-screen').classList.remove('active'); }
+
+/**
+ * Soumet le formulaire de premier démarrage : valide les champs côté client,
+ * appelle POST /api/setup, puis connecte automatiquement l'utilisateur.
+ */
+async function submitSetup() {
+  const username = document.getElementById('setup-username').value.trim();
+  const p1   = document.getElementById('setup-password').value;
+  const p2   = document.getElementById('setup-password2').value;
+  const err  = document.getElementById('setup-error');
+  err.textContent = '';
+  if (!username || username.length > 32 || !/^[a-zA-Z0-9._-]+$/.test(username))
+    { err.textContent = 'Nom d\'utilisateur invalide (1–32 caractères alphanumériques, . _ -)'; return; }
+  if (p1.length < 8)  { err.textContent = 'Mot de passe trop court (min 8 caractères)'; return; }
+  if (p1.length > 72) { err.textContent = 'Mot de passe trop long (max 72 caractères)'; return; }
+  if (p1 !== p2)      { err.textContent = 'Les mots de passe ne correspondent pas'; return; }
+  try {
+    const r = await fetch(BASE + '/api/setup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password: p1 })
+    });
+    const d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Erreur'; return; }
+    // Connexion automatique avec les identifiants saisis
+    hideSetup();
+    const lr = await fetch(BASE + '/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ username, password: p1 })
+    });
+    if (!lr.ok) { showLogin('Compte créé — connectez-vous'); return; }
+    hideLogin();
+    loadStats(); loadConnections(); loadAutoRefreshConfig(true); startPolling();
+    await loadRules();
+    switchTab(localStorage.getItem('active-tab') || 'top');
+  } catch { err.textContent = 'Erreur réseau'; }
+}
+
 /** Vérifie si la session est encore valide en sondant /api/stats.
  *  Retourne true si authentifié, false sinon (affiche le login dans les deux cas d'échec). */
 async function checkAuth() {
+  try {
+    const s = await fetch(BASE + '/api/setup/status').then(r => r.json());
+    if (!s.setupComplete) { showSetup(); return false; }
+  } catch {}
   try {
     const r = await fetch(BASE + '/api/stats', { credentials: 'include' });
     if (r.status === 401) { showLogin(); return false; }
@@ -175,6 +220,9 @@ function toggleTheme() {
 updateThemeIcon();
 
 // === ÉVÉNEMENTS STATIQUES ===
+// Formulaire de premier démarrage
+document.getElementById('setup-btn').addEventListener('click', submitSetup);
+document.getElementById('setup-password2').addEventListener('keydown', e => { if (e.key === 'Enter') submitSetup(); });
 // Formulaire de connexion : clic sur le bouton et touche Entrée dans les deux champs
 document.getElementById('login-btn').addEventListener('click', doLogin);
 document.getElementById('login-username').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
