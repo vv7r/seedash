@@ -42,7 +42,6 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 ### Ajouté
 - **Page de premier démarrage** (setup first-run) — création du compte admin (username + password libres) avant tout accès ; auto-login immédiat après setup
 - **44 tests unitaires** (`node:test` natif) — `cleaner-logic.test.js` (23 tests sur `shouldDelete`) et `grab-logic.test.js` (21 tests sur `filterCandidates`)
-- `resolve-meta.js` — script CLI autonome pour résoudre les noms C411 et catégories manquants dans `namemap.json` / `categorymap.json`
 
 ### Modifié
 - `public/app.js` (~1870L) découpé en 6 modules : `utils.js`, `stats.js`, `charts.js`, `top.js`, `actifs.js`, `rules.js`
