@@ -459,7 +459,7 @@ seedash/
     ├── namemap.json        — correspondance hash qBittorrent → nom C411
     ├── categorymap.json    — correspondance hash qBittorrent → catégorie C411
     ├── upload-history.json — courbe d'upload par torrent (points horodatés)
-    └── cleaner.log         — journal du cleaner automatique (suppressions)
+    └── auto.log            — journal des opérations automatiques (cleaner + grab)
 ```
 
 ---
