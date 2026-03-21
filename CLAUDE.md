@@ -14,7 +14,6 @@ Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS sépar
 - **`lib/grab.js`** — auto-grab (cycle, timer, exporte `filterCandidates()` testable)
 - **`lib/helpers.js`** — helpers purs (`getIn`, `setIn`, `maskSecret`, `isHttpUrl`)
 - **`crypto-config.js`** — chiffrement AES-256-GCM des secrets sur disque
-- **`resolve-meta.js`** — script CLI autonome : résout les noms C411 et catégories manquants dans `namemap.json`/`categorymap.json` (jusqu'à 6 requêtes par torrent, du plus précis au plus large)
 - **`config.json`** — config persistante, lue/écrite par le serveur à chaud (versionné dans git)
 - **`connections.json`** — secrets chiffrés + bloc auth (jwt_secret, password_hash) — ignoré par git, toujours écrit en `chmod 600`
 - **`ecosystem.config.js`** — config PM2 minimaliste (nom du process + script), sans JWT_SECRET — ignoré par git
