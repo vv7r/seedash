@@ -372,9 +372,9 @@ body { padding-bottom: env(safe-area-inset-bottom, 0); }
   .cfg-fields-3-end { grid-template-columns: 1fr; }
   .cfg-fields-1 { max-width: 100%; }
   .pwd-footer { margin-left: 0; margin-right: 0; }
-  /* Toast pleine largeur sur très petit écran */
-  .toast-container { right: max(0.75rem, env(safe-area-inset-right, 0)); left: max(0.75rem, env(safe-area-inset-left, 0)); }
-  .toast { max-width: none; }
+  /* Toast centré pleine largeur sur petit écran */
+  .toast-container { left: 50%; right: auto; transform: translateX(-50%); width: calc(100% - 1.5rem); max-width: none; align-items: stretch; }
+  .toast { max-width: none; text-align: center; }
   /* Modale en bottom-sheet : alignée en bas, coins bas carrés */
   .modal-overlay { align-items: flex-end; }
   .modal-box { max-width: 100%; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
