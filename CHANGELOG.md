@@ -9,6 +9,12 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Ajouté
+- `logs/auto.log` — journal unifié cleaner + grab (remplace `cleaner.log`) ; chaque ligne porte un préfixe `[cleaner]` ou `[auto-grab]`
+
+### Modifié
+- `grab.js` : toutes les traces écrites dans `auto.log` via `log()` (plus de console.log isolé)
+
 ### Sécurité
 - **XSS** : `he()` appliqué sur le hash dans `actifs.js` et l'URL dans `rules.js` (interpolation innerHTML)
 - **loginAttempts** : cap à 10 000 entrées pour résister aux attaques DDoS distribuées
