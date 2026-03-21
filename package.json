@@ -1,6 +1,6 @@
 {
   "name": "seedash",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Dashboard de gestion seedbox C411 + qBittorrent",
   "main": "server.js",
   "scripts": {

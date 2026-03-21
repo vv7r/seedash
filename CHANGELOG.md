@@ -11,6 +11,18 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.5.2] - 2026-03-21
+
+### Corrigé
+- `top.js` : `fetch()` → `fetchT()` sur `loadTopCache` et `loadTop` (timeout 10s manquant)
+
+### Modifié
+- `.gitignore` : ajout `.env` et `.env.local`
+- Compteur de tests corrigé (44 → 63) dans README, CONTRIBUTING.md et CLAUDE.md
+- Cache Ultra.cc : durée corrigée (120s → 5 min) dans README pour cohérence avec le code
+
+---
+
 ## [1.5.1] - 2026-03-21
 
 ### Ajouté
@@ -129,7 +141,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.1...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/vv7r/seedash/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/vv7r/seedash/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/vv7r/seedash/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/vv7r/seedash/compare/v1.3.0...v1.4.0
