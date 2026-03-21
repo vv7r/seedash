@@ -1,9 +1,3 @@
-# Politique de sécurité
-
-## Versions supportées
-
-Seule la dernière version en date est activement maintenue et reçoit des correctifs de sécurité.
-
 ## Signaler une vulnérabilité
 
 **Ne pas ouvrir une issue publique pour un problème de sécurité.**
@@ -15,7 +9,6 @@ Indiquez :
 - Les étapes pour le reproduire
 - L'impact potentiel
 
-Nous nous engageons à répondre sous 72 heures et à publier un correctif dans les 14 jours si la vulnérabilité est confirmée.
 
 ## Bonnes pratiques pour les utilisateurs
 
