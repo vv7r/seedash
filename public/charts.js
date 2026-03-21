@@ -1,3 +1,4 @@
+'use strict';
 // === GRAPHIQUES UPLOAD ===
 // Fonctions de rendu de graphique canvas 2D (upload cumulatif par torrent)
 // et modal graphique plein écran.
@@ -186,7 +187,7 @@ function attachChartHover(canvas, state, signal) {
 async function renderUploadChart(hash, canvas) {
   const container = canvas.parentElement;
   try {
-    const d = await fetch(BASE + '/api/upload-history/' + hash, { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/upload-history/' + hash, { credentials: 'include' }).then(r => r.json());
     const allPoints = d.points || [];
     if (allPoints.length < 2) {
       container.innerHTML = '<div class="chart-empty">Collecte en cours… (données disponibles après 5 min)</div>';
@@ -236,7 +237,7 @@ async function openChartModal(hash) {
   });
   document.getElementById('chart-modal').classList.add('open');
   try {
-    const d = await fetch(BASE + '/api/upload-history/' + hash, { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/upload-history/' + hash, { credentials: 'include' }).then(r => r.json());
     chartModalPoints = d.points || [];
   } catch { chartModalPoints = []; }
   renderModalChart();

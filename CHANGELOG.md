@@ -9,6 +9,18 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Sécurité
+- **XSS** : `he()` appliqué sur le hash dans `actifs.js` et l'URL dans `rules.js` (interpolation innerHTML)
+- **loginAttempts** : cap à 10 000 entrées pour résister aux attaques DDoS distribuées
+- **token_expiry** : valeur validée côté serveur contre une liste blanche (1h→168h), fallback `24h`
+- **fetch() timeout** : `fetchT()` ajouté dans `utils.js` (AbortController 10s) — tous les appels frontend migrent vers cette fonction
+
+### Modifié
+- `'use strict'` ajouté en tête de tous les fichiers frontend
+- `doLogout` : catch silencieux remplacé par `console.warn`
+- Commentaire obsolète corrigé dans `cleaner.js`
+- `cleaner.log` restauré dans l'arborescence `logs/` du README
+
 ---
 
 ## [1.5.0] - 2026-03-21

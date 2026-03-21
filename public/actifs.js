@@ -1,3 +1,4 @@
+'use strict';
 // === TORRENTS ACTIFS ===
 
 // État local des torrents actifs
@@ -16,7 +17,7 @@ function insertChartRow(hash, afterElement) {
   const chartTr = document.createElement('tr');
   chartTr.className = 'chart-row'; chartTr.dataset.hash = hash;
   const td = document.createElement('td'); td.colSpan = 9;
-  td.innerHTML = '<div class="chart-container"><button class="chart-expand-btn" data-action="expand-chart" data-hash="' + hash + '" title="Agrandir">⤢</button><canvas class="upload-chart"></canvas></div>';
+  td.innerHTML = '<div class="chart-container"><button class="chart-expand-btn" data-action="expand-chart" data-hash="' + he(hash) + '" title="Agrandir">⤢</button><canvas class="upload-chart"></canvas></div>';
   chartTr.appendChild(td);
   afterElement.insertAdjacentElement('afterend', chartTr);
   renderUploadChart(hash, td.querySelector('canvas'));
@@ -183,8 +184,8 @@ async function loadActifs() {
   const tbody = document.getElementById('actifs-body');
   try {
     const [tr, rr] = await Promise.all([
-      fetch(BASE + '/api/torrents', { credentials: 'include' }).then(r => { if (r.status === 401) { showLogin('Session expirée'); throw new Error('401'); } return r.json(); }),
-      fetch(BASE + '/api/rules', { credentials: 'include' }).then(r => r.json())
+      fetchT(BASE + '/api/torrents', { credentials: 'include' }).then(r => { if (r.status === 401) { showLogin('Session expirée'); throw new Error('401'); } return r.json(); }),
+      fetchT(BASE + '/api/rules', { credentials: 'include' }).then(r => r.json())
     ]);
     const torrents = tr.torrents || [];
     updateQbitStats(torrents);
@@ -244,7 +245,7 @@ async function deleteTorrent(hash) {
   const name = torrentDataMap.get(hash) || hash;
   showConfirm('Supprimer "' + name + '" ?', async () => {
     actifsHashes = '';
-    await fetch(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name), { method: 'DELETE', credentials: 'include' });
+    await fetchT(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name), { method: 'DELETE', credentials: 'include' });
     loadActifs(); loadStats();
   });
 }
@@ -254,7 +255,7 @@ async function deleteManual(hash) {
   const name = torrentDataMap.get(hash) || hash;
   showConfirm('Supprimer ce torrent ?\n\n"' + name + '"', async () => {
     actifsHashes = '';
-    await fetch(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name), { method: 'DELETE', credentials: 'include' });
+    await fetchT(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name), { method: 'DELETE', credentials: 'include' });
     loadActifs(); loadStats();
   });
 }

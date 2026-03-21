@@ -1,3 +1,4 @@
+'use strict';
 // === CONFIG & INIT RAPIDE ===
 
 // Restaure l'onglet actif avant checkAuth pour éviter le flash
@@ -39,7 +40,7 @@ async function doLogin() {
   const password = document.getElementById('login-password').value;
   document.getElementById('login-error').textContent = '';
   try {
-    const r = await fetch(BASE + '/api/login', {
+    const r = await fetchT(BASE + '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -63,7 +64,7 @@ async function doLogin() {
 
 /** Invalide la session côté serveur (suppression du cookie JWT) puis affiche le login. */
 async function doLogout() {
-  await fetch(BASE + '/api/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+  await fetchT(BASE + '/api/logout', { method: 'POST', credentials: 'include' }).catch(e => console.warn('[logout]', e.message));
   _authFailed();
   showLogin();
 }
@@ -89,7 +90,7 @@ async function submitSetup() {
   if (p1.length > 72) { err.textContent = 'Mot de passe trop long (max 72 caractères)'; return; }
   if (p1 !== p2)      { err.textContent = 'Les mots de passe ne correspondent pas'; return; }
   try {
-    const r = await fetch(BASE + '/api/setup', {
+    const r = await fetchT(BASE + '/api/setup', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password: p1 })
     });
@@ -97,7 +98,7 @@ async function submitSetup() {
     if (!r.ok) { err.textContent = d.error || 'Erreur'; return; }
     // Connexion automatique avec les identifiants saisis
     hideSetup();
-    const lr = await fetch(BASE + '/api/login', {
+    const lr = await fetchT(BASE + '/api/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       credentials: 'include', body: JSON.stringify({ username, password: p1 })
     });
@@ -115,11 +116,11 @@ async function submitSetup() {
  *  Retourne true si authentifié, false sinon (affiche le login dans les deux cas d'échec). */
 async function checkAuth() {
   try {
-    const s = await fetch(BASE + '/api/setup/status').then(r => r.json());
+    const s = await fetchT(BASE + '/api/setup/status').then(r => r.json());
     if (!s.setupComplete) { _authFailed(); showSetup(); return false; }
   } catch {}
   try {
-    const r = await fetch(BASE + '/api/stats', { credentials: 'include' });
+    const r = await fetchT(BASE + '/api/stats', { credentials: 'include' });
     if (r.status === 401) { _authFailed(); showLogin(); return false; }
     localStorage.setItem('seedash-authed', '1');
     hideLogin();

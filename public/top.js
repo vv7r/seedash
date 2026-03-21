@@ -1,3 +1,4 @@
+'use strict';
 // === TOP LEECHERS & AUTO-REFRESH ===
 
 // État local du top leechers
@@ -218,7 +219,7 @@ async function grabOne(idx) {
   const item = topItems[idx];
   if (!item) return;
   try {
-    await fetch(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url: item.link, name: item.name, page_url: item.page_url || null, infohash: item.infohash || '', category: item.category ?? null }) });
+    await fetchT(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url: item.link, name: item.name, page_url: item.page_url || null, infohash: item.infohash || '', category: item.category ?? null }) });
     toast('Ajouté : ' + item.name);
     loadStats();
   } catch (e) { toast('Erreur : ' + e.message, 'error'); }
@@ -227,7 +228,7 @@ async function grabOne(idx) {
 /** Envoie en séquence tous les torrents de la sélection multiple à qBittorrent. */
 async function grabSelected() {
   if (!selectedGrab.size) { toast('Aucun torrent sélectionné.', 'error'); return; }
-  for (const [url, data] of selectedGrab) await fetch(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url, name: data.name, infohash: data.infohash, category: data.category ?? null }) });
+  for (const [url, data] of selectedGrab) await fetchT(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url, name: data.name, infohash: data.infohash, category: data.category ?? null }) });
   toast(selectedGrab.size + ' torrent(s) envoyé(s) à qBittorrent.');
   selectedGrab.clear();
   loadTop(); loadStats();
@@ -245,7 +246,7 @@ function updateLastGrabDisplay(count) {
  *  @param {boolean} [startInterval] - Démarre le timer client si true */
 async function loadAutoRefreshConfig(startInterval = false) {
   try {
-    const d = await fetch(BASE + '/api/auto-refresh', { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/auto-refresh', { credentials: 'include' }).then(r => r.json());
     document.getElementById('autorefresh-enabled').checked = !!d.grab_enabled;
     autoRefreshTimerEnabled  = !!d.timer_enabled;
     autoRefreshIntervalHours = d.timer_interval_hours || 1;
@@ -317,7 +318,7 @@ function applyAutoRefresh(lastRun = null) {
 /** Enregistre l'état du toggle grab via POST /api/auto-refresh. */
 async function saveAutoRefresh() {
   const enabled = document.getElementById('autorefresh-enabled').checked;
-  const r = await fetch(BASE + '/api/auto-refresh', {
+  const r = await fetchT(BASE + '/api/auto-refresh', {
     method: 'POST',
     headers: authHeaders(),
     credentials: 'include',
@@ -330,7 +331,7 @@ async function saveAutoRefresh() {
 async function triggerAutoGrab(showFeedback = false) {
   try {
     const source = showFeedback ? 'manuel' : 'auto';
-    const r = await fetch(BASE + '/api/auto-grab/run', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ source }) });
+    const r = await fetchT(BASE + '/api/auto-grab/run', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ source }) });
     const d = await r.json();
     lastRefreshTime = new Date().toISOString();
     lastRefreshType = showFeedback ? 'manuel' : 'auto';
