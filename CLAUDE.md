@@ -42,7 +42,7 @@ Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS sépar
 ```bash
 npm start              # prod
 npm run dev            # hot-reload (node --watch)
-npm test               # tests unitaires (node:test natif, 44 tests)
+npm test               # tests unitaires (node:test natif, 63 tests)
 pm2 reload seedash     # rechargement gracieux en production
 ```
 

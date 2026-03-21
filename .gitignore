@@ -4,3 +4,5 @@ logs/
 .claude/
 ecosystem.config.js
 connections.json
+.env
+.env.local
