@@ -47,6 +47,8 @@ async function doLogin() {
     });
     const d = await r.json();
     if (!r.ok) { document.getElementById('login-error').textContent = d.error || 'Erreur'; return; }
+    localStorage.setItem('seedash-authed', '1');
+    document.documentElement.classList.add('ready');
     hideLogin();
     loadStats();
     loadConnections();
@@ -62,6 +64,7 @@ async function doLogin() {
 /** Invalide la session côté serveur (suppression du cookie JWT) puis affiche le login. */
 async function doLogout() {
   await fetch(BASE + '/api/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+  _authFailed();
   showLogin();
 }
 
@@ -99,6 +102,8 @@ async function submitSetup() {
       credentials: 'include', body: JSON.stringify({ username, password: p1 })
     });
     if (!lr.ok) { showLogin('Compte créé — connectez-vous'); return; }
+    localStorage.setItem('seedash-authed', '1');
+    document.documentElement.classList.add('ready');
     hideLogin();
     loadStats(); loadConnections(); loadAutoRefreshConfig(true); startPolling();
     await loadRules();
@@ -111,17 +116,22 @@ async function submitSetup() {
 async function checkAuth() {
   try {
     const s = await fetch(BASE + '/api/setup/status').then(r => r.json());
-    if (!s.setupComplete) { showSetup(); return false; }
+    if (!s.setupComplete) { _authFailed(); showSetup(); return false; }
   } catch {}
   try {
     const r = await fetch(BASE + '/api/stats', { credentials: 'include' });
-    if (r.status === 401) { showLogin(); return false; }
+    if (r.status === 401) { _authFailed(); showLogin(); return false; }
+    localStorage.setItem('seedash-authed', '1');
     hideLogin();
     return true;
   } catch (e) {
-    showLogin('Erreur réseau — réessayez');
+    _authFailed(); showLogin('Erreur réseau — réessayez');
     return false;
   }
+}
+function _authFailed() {
+  localStorage.removeItem('seedash-authed');
+  document.documentElement.classList.remove('ready');
 }
 
 // === ÉTAT GLOBAL ===
@@ -419,6 +429,7 @@ function startPolling() {
 // Point d'entrée : vérifie la session, et si valide, initialise toute l'application
 checkAuth().then(async authenticated => {
   if (authenticated) {
+    document.documentElement.classList.add('ready');
     loadStats();
     loadConnections();
     loadAutoRefreshConfig(true);
