@@ -24,10 +24,16 @@ echo ""
 
 # ─── 1. Prérequis ────────────────────────────────────────────────────────────
 sep "Vérification des prérequis"
-command -v node >/dev/null 2>&1 || err "node introuvable — Node.js requis"
+if ! command -v node >/dev/null 2>&1; then
+  err "Node.js introuvable — installez-le d'abord :\n\n    bash <(wget -qO- https://scripts.ultra.cc/util-v2/LanguageInstaller/Node-Installer/main.sh)\n\n  Puis reconnectez-vous en SSH et relancez ce script."
+fi
 command -v npm  >/dev/null 2>&1 || err "npm introuvable"
-command -v pm2  >/dev/null 2>&1 || err "pm2 introuvable — installez-le : npm install -g pm2"
 command -v curl >/dev/null 2>&1 || err "curl introuvable"
+if ! command -v pm2 >/dev/null 2>&1; then
+  info "PM2 introuvable — installation..."
+  npm install -g pm2 --silent || err "Échec installation PM2"
+  ok "PM2 installé"
+fi
 ok "Node $(node -v), npm $(npm -v), pm2 $(pm2 -v 2>/dev/null | head -1)"
 
 # ─── 2. Dépendances npm ──────────────────────────────────────────────────────

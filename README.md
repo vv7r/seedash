@@ -113,10 +113,10 @@ où `<user>` et `<host>` sont visibles dans votre panneau Ultra.cc ou via `hostn
 
 ### Prérequis
 
-- Accès SSH à votre seedbox Ultra.cc
-- qBittorrent installé via le panneau Ultra.cc (`https://cp.ultra.cc` → Applications → qBittorrent)
-- Node.js disponible (préinstallé sur Ultra.cc : `node --version`)
-- PM2 disponible (`pm2 --version`) — si absent : `npm install -g pm2`
+- Accès SSH à votre seedbox Ultra.cc ([doc](https://docs.ultra.cc/connection-details/ssh))
+- qBittorrent installé via le panneau Ultra.cc ([doc](https://docs.ultra.cc/applications/qbittorrent) — `https://cp.ultra.cc` → Applications → qBittorrent)
+- Node.js installé sur votre seedbox — via le [script officieux Ultra.cc](https://docs.ultra.cc/unofficial-language-installers/install-nodejs) : `bash <(wget -qO- https://scripts.ultra.cc/util-v2/LanguageInstaller/Node-Installer/main.sh)` (puis reconnexion SSH)
+- PM2 disponible — si absent : `npm install -g pm2`
 
 ### Installation automatique (recommandée)
 
