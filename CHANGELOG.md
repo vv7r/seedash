@@ -2,12 +2,16 @@
 
 Toutes les modifications notables de ce projet sont documentées dans ce fichier.
 
-Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
+Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/),
 versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.5.0] — 2026-03-21
+## [Non publié]
+
+---
+
+## [1.5.0] - 2026-03-21
 
 ### Ajouté
 - **Card Timer** — cycle automatique unique remplaçant les deux timers indépendants : enchaîne Auto clean puis Auto grab avec un délai de 10s entre les deux
@@ -24,7 +28,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.4.0] — 2026-03-21
+## [1.4.0] - 2026-03-21
 
 ### Ajouté
 - **Boutons "Test"** par service (qBittorrent, C411, Ultra.cc) avec toast de retour détaillé (erreur HTTP, timeout, connexion refusée)
@@ -37,7 +41,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.3.0] — 2026-03-20
+## [1.3.0] - 2026-03-20
 
 ### Ajouté
 - **Page de premier démarrage** (setup first-run) — création du compte admin (username + password libres) avant tout accès ; auto-login immédiat après setup
@@ -53,7 +57,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.2.1] — 2026-03-19
+## [1.2.1] - 2026-03-19
 
 ### Corrigé
 - **Logique Auto clean** : conditions minimales (`ratio_min`, `age_min_hours`, `upload_min_mb`) évaluées en **ET** — toutes les conditions actives doivent être vraies simultanément pour déclencher une suppression (comportement précédent : OU)
@@ -62,7 +66,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.2.0] — 2026-03-18
+## [1.2.0] - 2026-03-18
 
 ### Ajouté
 - **Manifest PWA** — icône, `theme-color`, `display: standalone` pour installation sur mobile
@@ -79,7 +83,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.1.0] — 2026-03-16
+## [1.1.0] - 2026-03-16
 
 ### Modifié
 - Séparation complète HTML / CSS / JS : `index.html` structurel pur, tout le style dans `style.css`, logique dans les fichiers JS
@@ -88,7 +92,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.0.0] — 2026-03-15
+## [1.0.0] - 2026-03-15
 
 ### Ajouté
 - **Top leechers** — top C411 par leechers, filtrage par catégorie, tri par colonne, grab direct vers qBittorrent
@@ -105,15 +109,11 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## Types de changements
-
-| Type | Description |
-|------|-------------|
-| `Ajouté` | Nouvelles fonctionnalités |
-| `Modifié` | Modifications de fonctionnalités existantes |
-| `Déprécié` | Fonctionnalités qui seront supprimées dans les prochaines versions |
-| `Supprimé` | Fonctionnalités supprimées |
-| `Corrigé` | Corrections de bugs |
-| `Sécurité` | Corrections de vulnérabilités |
-
----
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/vv7r/seedash/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/vv7r/seedash/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/vv7r/seedash/compare/v1.2.1...v1.3.0
+[1.2.1]: https://github.com/vv7r/seedash/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/vv7r/seedash/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/vv7r/seedash/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/vv7r/seedash/releases/tag/v1.0.0
