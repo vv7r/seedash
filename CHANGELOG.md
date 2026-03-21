@@ -7,7 +7,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.6.0] — 2026-03-21
+## [1.5.0] — 2026-03-21
 
 ### Ajouté
 - **Card Timer** — cycle automatique unique remplaçant les deux timers indépendants : enchaîne Auto clean puis Auto grab avec un délai de 10s entre les deux
@@ -24,7 +24,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.5.0] — 2026-03-21
+## [1.4.0] — 2026-03-21
 
 ### Ajouté
 - **Boutons "Test"** par service (qBittorrent, C411, Ultra.cc) avec toast de retour détaillé (erreur HTTP, timeout, connexion refusée)
@@ -37,11 +37,11 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.4.0] — 2026-03-20
+## [1.3.0] — 2026-03-20
 
 ### Ajouté
 - **Page de premier démarrage** (setup first-run) — création du compte admin (username + password libres) avant tout accès ; auto-login immédiat après setup
-- **44 tests unitaires** (`node:test` natif) — `cleaner-logic.test.js` (23 tests sur `shouldDelete`) et `grab-logic.test.js` (21 tests sur `filterCandidates`)
+- **Tests unitaires** (`node:test` natif) — `cleaner-logic.test.js` (23 tests sur `shouldDelete`) et `grab-logic.test.js` (21 tests sur `filterCandidates`)
 
 ### Modifié
 - `public/app.js` (~1870L) découpé en 6 modules : `utils.js`, `stats.js`, `charts.js`, `top.js`, `actifs.js`, `rules.js`
@@ -53,7 +53,7 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.3.0] — 2026-03-19
+## [1.2.1] — 2026-03-19
 
 ### Corrigé
 - **Logique Auto clean** : conditions minimales (`ratio_min`, `age_min_hours`, `upload_min_mb`) évaluées en **ET** — toutes les conditions actives doivent être vraies simultanément pour déclencher une suppression (comportement précédent : OU)
