@@ -11,6 +11,13 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.5.3] - 2026-03-21
+
+### Corrigé
+- `server.js` : cast `String()` sur `req.query.name` dans `DELETE /api/torrents/:hash` pour éviter une confusion de type si le paramètre est un tableau
+
+---
+
 ## [1.5.2] - 2026-03-21
 
 ### Corrigé
@@ -141,7 +148,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.2...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/vv7r/seedash/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/vv7r/seedash/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/vv7r/seedash/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/vv7r/seedash/compare/v1.4.0...v1.5.0
