@@ -202,9 +202,45 @@ CSP active avec `useDefaults: false` (exclut `upgrade-insecure-requests` qui cas
 - `connect-src 'self'` — fetch() limité à la même origine
 - `frame-ancestors 'none'` — pas d'embedding en iframe
 
+## Versionnement & CHANGELOG
+
+Le projet suit [Semantic Versioning](https://semver.org/lang/fr/) et [Keep a Changelog 1.1.0](https://keepachangelog.com/fr/1.1.0/).
+
+### Règles de version
+
+- **Bug fix** → incrémenter le patch : `1.5.0` → `1.5.1`
+- **Nouvelle fonctionnalité** → incrémenter le minor : `1.5.0` → `1.6.0`
+- **Changement breaking** → incrémenter le major : `1.5.0` → `2.0.0`
+
+### Process à chaque release
+
+1. Déplacer les entrées de `## [Non publié]` vers une nouvelle section `## [X.Y.Z] - YYYY-MM-DD`
+2. Remettre une section `## [Non publié]` vide en haut
+3. Mettre à jour `package.json` → `"version": "X.Y.Z"`
+4. Ajouter le lien de comparaison en bas du fichier :
+   ```
+   [X.Y.Z]: https://github.com/vv7r/seedash/compare/vA.B.C...vX.Y.Z
+   ```
+5. Mettre à jour le lien `[Non publié]` :
+   ```
+   [Non publié]: https://github.com/vv7r/seedash/compare/vX.Y.Z...HEAD
+   ```
+6. Créer le tag git : `git tag vX.Y.Z && git push origin --tags`
+
+### Sections autorisées dans CHANGELOG
+
+`### Ajouté` · `### Modifié` · `### Déprécié` · `### Supprimé` · `### Corrigé` · `### Sécurité`
+
+### Format des entrées
+
+- Séparateur date : tiret simple ` - ` (pas tiret cadratin `—`)
+- Date : format ISO `YYYY-MM-DD`
+
 ## Conventions
 
 - Messages d'interface en **français**
 - Logs serveur en français (préfixe `[module]`)
 - Pas de framework CSS — variables CSS custom dans `:root` / `[data-theme="dark"]`
 - `table-layout: auto` + `col-nom { width:99%; max-width:0 }` pour la colonne nom flexible
+- Tous les `fetch()` frontend passent par `fetchT()` (`utils.js`) — AbortController 10s intégré
+- Tout fichier JS frontend commence par `'use strict';`
