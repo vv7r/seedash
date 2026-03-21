@@ -271,8 +271,13 @@ input[type=checkbox]:not(.toggle) { accent-color: #1D9E75; width: 14px; height: 
 .cfg-section-border { border-bottom: 0.5px solid var(--border); }
 .cfg-title { margin-bottom: 8px; }
 .cfg-fields-1 { max-width: 420px; }
+.cfg-fields-1-btn { display: flex; gap: 8px; align-items: flex-end; }
+.cfg-fields-1-btn > div:first-child { flex: 1; }
 .cfg-fields-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cfg-fields-2-btn { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
 .cfg-fields-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.cfg-fields-3-btn { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
+.cfg-btn-align { display: flex; align-items: flex-end; }
 .cfg-fields-3-end { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; align-items: end; }
 .cfg-hint { opacity: 0.5; font-size: 11px; }
 .cfg-label { margin-bottom: 4px; }
@@ -320,8 +325,8 @@ body { padding-bottom: env(safe-area-inset-bottom, 0); }
   padding-left:  max(1rem, env(safe-area-inset-left, 0));
   padding-right: max(1rem, env(safe-area-inset-right, 0));
 }
-/* Le toast se décale vers le haut pour ne pas être masqué par la barre d'accueil */
-.toast { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0)); }
+/* Le container se décale vers le haut pour ne pas être masqué par la barre d'accueil */
+.toast-container { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0)); }
 .login-screen { padding-left: env(safe-area-inset-left, 0); padding-right: env(safe-area-inset-right, 0); }
 
 /* === BREAKPOINTS === */
@@ -360,12 +365,15 @@ body { padding-bottom: env(safe-area-inset-bottom, 0); }
 /* Formulaires de config en colonne unique ; modale collée au bas de l'écran (sheet mobile) */
 @media (max-width: 480px) {
   .cfg-fields-2,
+  .cfg-fields-2-btn,
   .cfg-fields-3,
+  .cfg-fields-3-btn,
   .cfg-fields-3-end { grid-template-columns: 1fr; }
   .cfg-fields-1 { max-width: 100%; }
   .pwd-footer { margin-left: 0; margin-right: 0; }
   /* Toast pleine largeur sur très petit écran */
-  .toast { right: 0.75rem; left: 0.75rem; max-width: none; }
+  .toast-container { right: 0.75rem; left: 0.75rem; }
+  .toast { max-width: none; }
   /* Modale en bottom-sheet : alignée en bas, coins bas carrés */
   .modal-overlay { align-items: flex-end; }
   .modal-box { max-width: 100%; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
@@ -412,11 +420,10 @@ body { padding-bottom: env(safe-area-inset-bottom, 0); }
 .spinner.active { display: inline-block; }
 
 /* === TOAST === */
-/* opacity: 0 + pointer-events: none = invisible et non-interactif par défaut */
 /* z-index: 10000 — sous la modale de confirmation (10001) mais au-dessus du reste */
-.toast { position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 10px 16px; border-radius: var(--radius); font-size: 13px; color: #fff; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 10000; max-width: 420px; word-break: break-word; }
-/* JS ajoute/retire .show — la transition CSS gère le fondu */
-.toast.show { opacity: 1; }
+.toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; display: flex; flex-direction: column; gap: 8px; z-index: 10000; max-width: 420px; }
+.toast { padding: 10px 16px; border-radius: var(--radius); font-size: 13px; color: #fff; opacity: 0; pointer-events: none; transition: opacity 0.2s; word-break: break-word; }
+.toast.show { opacity: 1; pointer-events: auto; }
 .toast-success { background: #1D9E75; }
 .toast-error   { background: #a32d2d; }
 

@@ -82,6 +82,21 @@ Champs retournés utilisés par SeeDash :
 > L'API est mise en cache 120s côté serveur pour éviter les erreurs 429.
 > Le token est stocké chiffré AES-256-GCM dans `connections.json`.
 
+**Récupérer le token (via SSH) :**
+
+Le token est généré lors de l'installation du script Ultra API. Pour l'installer ou afficher un token existant :
+
+```bash
+bash <(wget -qO- https://scripts.ultra.cc/util-v2/Ultra-API/main.sh)
+# → choisir l'option 4 pour afficher le token existant
+```
+
+L'URL à renseigner dans SeeDash suit ce format :
+```
+https://<user>.<host>.usbx.me/ultra-api/total-stats
+```
+où `<user>` et `<host>` sont visibles dans votre panneau Ultra.cc ou via `hostname -f` en SSH.
+
 ---
 
 ## Installation sur Ultra.cc depuis zéro
@@ -89,77 +104,33 @@ Champs retournés utilisés par SeeDash :
 ### Prérequis
 
 - Accès SSH à votre seedbox Ultra.cc
-- qBittorrent installé et configuré via le panneau Ultra.cc
+- qBittorrent installé via le panneau Ultra.cc (`https://cp.ultra.cc` → Applications → qBittorrent)
 - Node.js disponible (préinstallé sur Ultra.cc : `node --version`)
-- PM2 disponible (`pm2 --version`) — gestionnaire de processus
+- PM2 disponible (`pm2 --version`) — si absent : `npm install -g pm2`
 
-### 1. Cloner le dépôt
+### Installation automatique (recommandée)
 
 ```bash
 cd ~
-git clone <url-du-repo> seedash
+git clone https://github.com/vv7r/seedash seedash
 cd seedash
-npm install
+bash install.sh
 ```
 
-### 2. Choisir un port libre
+Le script `install.sh` prend en charge automatiquement :
+- Détection d'un port libre (`app-ports free`)
+- Installation des dépendances npm
+- Démarrage via PM2
+- Détection et enregistrement des connexions :
+  - qBittorrent (port + identifiant depuis `~/.config/qBittorrent/qBittorrent.conf`)
+  - Ultra.cc API (URL depuis `hostname -f`, token depuis la base SQLite du script Ultra API — installé automatiquement si absent)
 
-Ultra.cc fournit un outil pour connaître les ports disponibles :
+Seule interaction requise :
+- **Base URL** (Entrée = `/seedash`)
 
-```bash
-app-ports show     # ports déjà utilisés
-app-ports free     # suggère un port libre
-```
+Le proxy Nginx (`~/.config/nginx/proxy.d/`) est configuré et rechargé automatiquement via `app-nginx reload`.
 
-Notez le port choisi (ex : `44962`).
-
-### 3. Configurer `config.json`
-
-`config.json` est inclus dans le dépôt avec des valeurs par défaut. Éditez-le pour renseigner le port choisi et l'URL de base :
-
-```json
-{
-  "port": 44962,
-  "baseurl": "/seedash"
-}
-```
-
-Les blocs `auto_grab` et `auto_clean` sont déjà présents avec des valeurs par défaut raisonnables — vous pouvez les ajuster avant le premier démarrage ou via l'interface ensuite.
-
-### 4. Démarrer via PM2
-
-```bash
-pm2 start ecosystem.config.js
-pm2 save
-```
-
-Vérifier que l'application tourne :
-
-```bash
-pm2 status
-pm2 logs seedash --lines 20 --nostream
-```
-
-### 5. Page de premier démarrage
-
-Ouvrez l'application dans votre navigateur. Une page de configuration s'affiche automatiquement au premier lancement :
-
-- **Nom d'utilisateur** — 1 à 32 caractères alphanumériques (`. _ -` autorisés)
-- **Mot de passe** — 8 à 72 caractères
-
-Une fois validé, vous êtes connecté automatiquement. `ecosystem.config.js` est généré si absent.
-
-Renseignez ensuite vos secrets dans **Configuration → Connexions & API** (clé C411, qBittorrent, Ultra.cc).
-
-### 6. Configurer le proxy Nginx
-
-Sur Ultra.cc, le proxy Nginx est géré via le panneau d'administration. Créez un proxy vers :
-
-```
-http://127.0.0.1:44962
-```
-
-avec le sous-chemin `/seedash` (correspondant à `baseurl` dans `config.json`).
+Une fois le script terminé, ouvrez l'URL publique affichée dans le terminal pour créer votre compte (page de premier démarrage), puis renseignez le **mot de passe qBittorrent** et la **clé API C411** dans **Configuration → Connexions & API**.
 
 ### Commandes utiles
 
@@ -331,8 +302,8 @@ Toutes les routes (sauf `/api/login` et `/api/setup`) nécessitent un header `Au
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| `GET` | `/api/stats` | Stats globales : qBittorrent + Ultra.cc (disque, trafic, vitesses) |
-| `GET` | `/api/connections` | Statut des connexions C411 / qBittorrent / Ultra.cc (LEDs) |
+| `GET` | `/api/stats` | Stats globales : qBittorrent + Ultra.cc (disque, trafic, vitesses) + `c411_base` (URL de base C411 dérivée de la config) |
+| `GET` | `/api/connections` | Statut des connexions : `'ok'` ou message d'erreur détaillé (`'HTTP 403'`, `'Connexion refusée'`, `'Timeout'`…) pour chaque service |
 
 ### Top leechers C411
 
@@ -422,8 +393,8 @@ Format retourné par `GET /api/rules` :
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| `GET` | `/api/config/secrets` | Valeurs masquées des secrets (lecture seule) |
-| `POST` | `/api/config/secrets` | Met à jour les connexions (chiffrement automatique) |
+| `GET` | `/api/config/secrets` | Valeurs masquées des secrets + `c411_url`, `qbit_url`, `qbit_username`, `ultracc_url` en clair |
+| `POST` | `/api/config/secrets` | Met à jour les connexions — champs acceptés : `c411_url`, `c411_apikey`, `qbit_url`, `qbit_username`, `qbit_password`, `ultracc_url`, `ultracc_token` |
 
 ---
 

@@ -293,6 +293,9 @@ document.getElementById('cleaner-run-btn').addEventListener('click', runCleanerN
 
 // Section connexions & API : sauvegarde des secrets et changement de mot de passe
 document.getElementById('btn-save-secrets').addEventListener('click', saveSecrets);
+document.getElementById('btn-test-c411').addEventListener('click',    () => testConnection('c411',        'led-c411'));
+document.getElementById('btn-test-qbit').addEventListener('click',    () => testConnection('qbittorrent', 'led-qbit'));
+document.getElementById('btn-test-ultracc').addEventListener('click', () => testConnection('ultracc',     'led-ultracc'));
 document.getElementById('btn-change-password').addEventListener('click', changePassword);
 
 // Modal de confirmation générique : confirmer, annuler, clic sur le fond
@@ -409,7 +412,7 @@ function startPolling() {
     if (document.getElementById('sec-actifs')?.classList.contains('active')) loadActifs();
   }, 5000);
   setInterval(loadConnections, 30000);
-  setInterval(loadStats, 60000);
+  setInterval(loadStats, 5000);
   setInterval(() => loadAutoRefreshConfig(false), 60000);
 }
 

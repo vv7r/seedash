@@ -4,7 +4,7 @@
   "auto_grab": {
     "enabled": false,
     "interval_minutes": 60,
-    "last_run": "2026-03-18T21:47:25.719Z",
+    "last_run": "2026-03-20T22:34:18.807Z",
     "last_grab_count": 0,
     "rules": {
       "grab_limit_per_day": 20,
@@ -22,11 +22,11 @@
     }
   },
   "auto_clean": {
-    "enabled": true,
+    "enabled": false,
     "interval_hours": 6,
-    "last_run": "2026-03-20T17:20:33.824Z",
+    "last_run": "2026-03-20T22:36:27.739Z",
     "last_deleted_count": 0,
-    "last_run_type": "auto",
+    "last_run_type": "manuel",
     "rules": {
       "ratio_min": 2,
       "ratio_max": 5,

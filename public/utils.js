@@ -1,6 +1,8 @@
 // === CONFIG ===
-/** Préfixe de toutes les routes API — doit correspondre au mountPath Express */
-const BASE = '/seedash';
+/** Préfixe de toutes les routes API — dérivé du premier segment du chemin URL courant.
+ *  Fonctionne quel que soit le baseurl configuré (ex: /seedash, /seedash-test, /monapp). */
+const BASE = '/' + (window.location.pathname.split('/').filter(Boolean)[0] || 'seedash');
+let c411Base = 'https://c411.org';
 
 // === UTILS ===
 
@@ -65,14 +67,19 @@ function showMsg(id, text) {
 }
 
 // === TOAST ===
-let toastTimer = null;
-/** Affiche une notification temporaire (toast) en bas de l'écran. Un seul toast à la fois. */
+/** Affiche une notification temporaire empilable en bas à droite. */
 function toast(msg, type = 'success') {
-  const el = document.getElementById('toast');
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
   el.textContent = msg;
-  el.className = `toast toast-${type} show`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), type === 'error' ? 7000 : 3500);
+  container.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+  const delay = type === 'error' ? 7000 : 3500;
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 250);
+  }, delay);
 }
 
 // === CATÉGORIES ===

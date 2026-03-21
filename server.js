@@ -498,7 +498,7 @@ app.delete(`${cfg.baseurl}/api/torrents/:hash`, auth.requireAuth, async (req, re
     if (nameMap[lhash]) { delete nameMap[lhash]; saveNameMap(); }
     if (categoryMap[lhash]) { delete categoryMap[lhash]; saveCategoryMap(); }
     if (uploadHistory[lhash]) { delete uploadHistory[lhash]; saveUploadHistory(); }
-    appendHistory('delete', 1, 'manuel', [{ name, url: `https://c411.org/torrents/${hash}` }]);
+    appendHistory('delete', 1, 'manuel', [{ name, url: `${(cfg.c411?.url || '').replace('/api/torznab', '') || 'https://c411.org'}/torrents/${hash}` }]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'Erreur serveur interne' });
@@ -596,7 +596,8 @@ app.get(`${cfg.baseurl}/api/stats`, auth.requireAuth, async (req, res) => {
     console.error('[ultracc_api]', e.message);
   }
 
-  res.json({ active, avg_ratio: Math.round(avgRatio * 100) / 100, dl_speed, up_speed, disk_used_gb, disk_total_gb, traffic_used_pct, traffic_reset_date });
+  const c411_base = (cfg.c411?.url || '').replace('/api/torznab', '') || 'https://c411.org';
+  res.json({ active, avg_ratio: Math.round(avgRatio * 100) / 100, dl_speed, up_speed, disk_used_gb, disk_total_gb, traffic_used_pct, traffic_reset_date, c411_base });
 });
 
 // ============================================================
@@ -610,10 +611,19 @@ app.get(`${cfg.baseurl}/api/connections`, auth.requireAuth, async (req, res) => 
     axios.get(cfg.c411.url, { params: { apikey: cfg.c411.apikey, t: 'caps' }, timeout: 8000 }).then(() => 'ok'),
     ultracc.getUltraccStats().then(() => 'ok'),
   ]);
+  const errMsg = r => {
+    const e = r.reason;
+    if (!e) return 'Erreur inconnue';
+    if (e.response) return `HTTP ${e.response.status}`;
+    if (e.code === 'ECONNREFUSED') return 'Connexion refusée';
+    if (e.code === 'ETIMEDOUT' || e.code === 'ECONNABORTED') return 'Timeout';
+    if (e.code === 'ENOTFOUND') return 'Hôte introuvable';
+    return e.message?.slice(0, 60) || 'Erreur inconnue';
+  };
   res.json({
-    qbittorrent: qbitRes.status    === 'fulfilled' ? 'ok' : 'error',
-    c411:        c411Res.status    === 'fulfilled' ? 'ok' : 'error',
-    ultracc:     ultraccRes.status === 'fulfilled' ? 'ok' : 'error',
+    qbittorrent: qbitRes.status    === 'fulfilled' ? 'ok' : errMsg(qbitRes),
+    c411:        c411Res.status    === 'fulfilled' ? 'ok' : errMsg(c411Res),
+    ultracc:     ultraccRes.status === 'fulfilled' ? 'ok' : errMsg(ultraccRes),
   });
 });
 
@@ -782,6 +792,7 @@ app.post(`${cfg.baseurl}/api/login`, async (req, res) => {
     auth.recordFailedLogin(ip);
     return res.status(401).json({ error: 'Identifiants incorrects' });
   }
+  if (!cfg.auth.password_hash) return res.status(401).json({ error: 'Identifiants incorrects' });
   const ok = await bcrypt.compare(password, cfg.auth.password_hash);
   if (!ok) {
     auth.recordFailedLogin(ip);
@@ -794,6 +805,7 @@ app.post(`${cfg.baseurl}/api/login`, async (req, res) => {
     secure:   req.secure || req.headers['x-forwarded-proto'] === 'https',
     sameSite: 'Strict',
     maxAge:   24 * 60 * 60 * 1000,
+    path:     cfg.baseurl + '/',
   });
   res.json({ ok: true });
 });
@@ -813,13 +825,15 @@ app.post(`${cfg.baseurl}/api/change-password`, auth.requireAuth, async (req, res
 
 // POST /api/logout
 app.post(`${cfg.baseurl}/api/logout`, (req, res) => {
-  res.clearCookie('seedash_token', { sameSite: 'Strict' });
+  res.clearCookie('seedash_token', { sameSite: 'Strict', path: cfg.baseurl + '/' });
+  res.clearCookie('seedash_token', { sameSite: 'Strict', path: '/' });
   res.json({ ok: true });
 });
 
 // GET /api/config/secrets
 app.get(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
   res.json({
+    c411_url:      cfg.c411?.url             || '',
     c411_apikey:   maskSecret(cfg.c411?.apikey),
     qbit_url:      cfg.qbittorrent?.url      || '',
     qbit_username: cfg.qbittorrent?.username || '',
@@ -831,11 +845,13 @@ app.get(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
 
 // POST /api/config/secrets
 app.post(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
-  const { c411_apikey, qbit_url, qbit_username, qbit_password, ultracc_url, ultracc_token } = req.body;
+  const { c411_url, c411_apikey, qbit_url, qbit_username, qbit_password, ultracc_url, ultracc_token } = req.body;
+  if (c411_url    && !isHttpUrl(c411_url))    return res.status(400).json({ error: 'c411_url invalide (doit commencer par http:// ou https://)' });
   if (qbit_url    && !isHttpUrl(qbit_url))    return res.status(400).json({ error: 'qbit_url invalide (doit commencer par http:// ou https://)' });
   if (ultracc_url && !isHttpUrl(ultracc_url)) return res.status(400).json({ error: 'ultracc_url invalide (doit commencer par http:// ou https://)' });
-  if (c411_apikey)   cfg.c411.apikey          = c411_apikey;
-  if (qbit_url)      cfg.qbittorrent.url       = qbit_url;
+  if (c411_url)      cfg.c411.url              = c411_url;
+  if (c411_apikey)   cfg.c411.apikey           = c411_apikey;
+  if (qbit_url)      cfg.qbittorrent.url        = qbit_url;
   if (qbit_username) cfg.qbittorrent.username  = qbit_username;
   if (qbit_password) { cfg.qbittorrent.password = qbit_password; qbit.clearCookie(); }
   if (ultracc_url)   { cfg.ultracc_api.url      = ultracc_url;   ultracc.invalidateCache(); }
