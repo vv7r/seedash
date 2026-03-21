@@ -395,7 +395,7 @@ body { padding-bottom: env(safe-area-inset-bottom, 0); }
 .login-screen { display: none; position: fixed; inset: 0; background: var(--bg); z-index: 9999; align-items: center; justify-content: center; }
 .login-screen.active { display: flex; }
 .login-box { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 2rem; width: 100%; max-width: 340px; }
-.login-title { font-size: 16px; font-weight: 500; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; }
+.login-title { font-size: 16px; font-weight: 500; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 .login-field { margin-bottom: 1rem; }
 .login-field label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; }
 .login-field input { width: 100%; padding: 8px 12px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 14px; }

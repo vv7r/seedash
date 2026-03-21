@@ -2,45 +2,52 @@
   "port": 44962,
   "baseurl": "/seedash",
   "auto_grab": {
-    "enabled": false,
+    "enabled": true,
     "interval_minutes": 60,
-    "last_run": "2026-03-20T22:34:18.807Z",
+    "last_run": "2026-03-21T11:37:54.003Z",
     "last_grab_count": 0,
     "rules": {
       "grab_limit_per_day": 20,
       "size_max_gb": 25,
       "active_max": 15,
       "min_leechers": 10,
-      "min_seeders": 2
+      "min_seeders": 2,
+      "network_max_pct": 90
     },
     "rules_on": {
       "grab_limit_per_day": true,
       "size_max_gb": true,
       "active_max": true,
       "min_leechers": true,
-      "min_seeders": true
+      "min_seeders": true,
+      "network_max_pct": true
     }
   },
   "auto_clean": {
-    "enabled": false,
+    "enabled": true,
     "interval_hours": 6,
-    "last_run": "2026-03-20T22:36:27.739Z",
+    "last_run": "2026-03-21T11:37:52.534Z",
     "last_deleted_count": 0,
     "last_run_type": "manuel",
     "rules": {
-      "ratio_min": 2,
+      "ratio_min": 1,
       "ratio_max": 5,
       "age_min_hours": 168,
       "age_max_hours": 720,
-      "upload_min_mb": 500,
-      "upload_window_hours": 72
+      "upload_min_mb": 250,
+      "upload_window_hours": 48
     },
     "rules_on": {
       "ratio_min": true,
       "ratio_max": false,
-      "age_min_hours": true,
+      "age_min_hours": false,
       "age_max_hours": false,
       "upload_min_mb": true
     }
+  },
+  "timer": {
+    "enabled": true,
+    "interval_hours": 1,
+    "last_run": "2026-03-21T11:37:18.013Z"
   }
 }
