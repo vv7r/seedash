@@ -186,7 +186,7 @@ function switchTab(name) {
   document.getElementById('sec-' + name).classList.add('active');
   if (name === 'top')        { const s = document.getElementById('f-cat'); if (s) s.value = ''; loadTopCache(); }
   if (name === 'actifs')     { const s = document.getElementById('f-cat-actifs'); if (s) s.value = ''; actifsHashes = ''; loadActifs(); }
-  if (name === 'regles')     { loadRules(); loadCleanerStatus(); loadAutoRefreshConfig(); loadSecrets(); }
+  if (name === 'regles')     { loadRules(); loadCleanerStatus(); loadTimerStatus(); loadAutoRefreshConfig(); loadSecrets(); }
   if (name === 'historique') loadHistory();
 }
 
@@ -194,7 +194,7 @@ function switchTab(name) {
 /** Met à jour l'icône du bouton thème (☀ en mode dark, ☽ en mode light). */
 function updateThemeIcon() {
   const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-  document.getElementById('btn-theme').textContent = dark ? '☀' : '☽';
+  document.querySelectorAll('.btn-theme').forEach(btn => btn.textContent = dark ? '☀' : '☽');
 }
 /** Bascule entre le thème clair et sombre : modifie data-theme sur <html>,
  *  persiste le choix en localStorage, met à jour la meta-couleur du navigateur
@@ -230,6 +230,7 @@ document.getElementById('login-password').addEventListener('keydown', e => { if 
 
 // Boutons globaux de la barre de navigation (thème et déconnexion)
 document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+document.querySelectorAll('.btn-theme-screen').forEach(btn => btn.addEventListener('click', toggleTheme));
 document.getElementById('btn-logout').addEventListener('click', doLogout);
 
 // Modal graphique : fermeture en cliquant sur le fond, changement de plage temporelle, bouton ✕
@@ -254,7 +255,7 @@ document.querySelectorAll('.tab[data-tab]').forEach(tab => {
 // Sélection globale du top leechers, bouton de refresh manuel, filtres catégorie
 document.getElementById('top-select-all').addEventListener('change', function () { toggleSelectAll(this); });
 // Refresh manuel : efface le countdown mémorisé pour repartir de zéro
-document.getElementById('btn-load-top').addEventListener('click', () => { loadTop(); localStorage.removeItem('autoRefreshNextAt'); applyAutoRefresh(); });
+document.getElementById('btn-load-top').addEventListener('click', () => { loadTop(); });
 // Filtre catégorie des torrents actifs : force un rebuild complet
 document.getElementById('f-cat-actifs').addEventListener('change', () => { actifsHashes = ''; loadActifs(); });
 // Filtre catégorie du top leechers : re-rend depuis le cache sans appel réseau
@@ -265,31 +266,29 @@ document.getElementById('f-cat').addEventListener('change', () => {
 // Envoi groupé des torrents sélectionnés dans le top
 document.getElementById('btn-grab-selected').addEventListener('click', grabSelected);
 
-// Auto-refresh : changement d'intervalle → recalcul immédiat du countdown + sauvegarde différée
-document.getElementById('autorefresh-interval').addEventListener('change', () => { localStorage.removeItem('autoRefreshNextAt'); applyAutoRefresh(); autoSave(); });
-// Auto-refresh : activation/désactivation → active/désactive le champ intervalle
-document.getElementById('autorefresh-enabled').addEventListener('change', (e) => { document.getElementById('autorefresh-interval').disabled = !e.target.checked; applyAutoRefresh(); autoSave(); });
+// Auto-grab toggle
+document.getElementById('autorefresh-enabled').addEventListener('change', () => { autoSave(); });
 // Bouton auto-grab manuel avec feedback toast
 document.getElementById('btn-auto-grab').addEventListener('click', () => triggerAutoGrab(true));
 
-// Cleaner : changement d'intervalle → sauvegarde différée
-document.getElementById('cleaner-interval').addEventListener('change', () => {
-  const interval = parseInt(document.getElementById('cleaner-interval').value) || 1;
-  const enabled  = document.getElementById('cleaner-enabled').checked;
-  localStorage.removeItem('cleanerNextAt');
-  applyCleanerCountdown(interval, enabled);
-  autoSave();
-});
-// Cleaner : activation/désactivation → active/désactive le champ intervalle
-document.getElementById('cleaner-enabled').addEventListener('change', (e) => {
-  document.getElementById('cleaner-interval').disabled = !e.target.checked;
-  const interval = parseInt(document.getElementById('cleaner-interval').value) || 1;
-  localStorage.removeItem('cleanerNextAt');
-  applyCleanerCountdown(interval, e.target.checked);
-  autoSave();
-});
+// Cleaner toggle
+document.getElementById('cleaner-enabled').addEventListener('change', () => { autoSave(); });
 // Bouton d'exécution manuelle du cleaner
 document.getElementById('cleaner-run-btn').addEventListener('click', runCleanerNow);
+
+// Timer : changement d'intervalle → sauvegarde différée
+document.getElementById('timer-interval').addEventListener('change', () => {
+  localStorage.removeItem('timerNextAt');
+  localStorage.removeItem('autoRefreshNextAt');
+  autoSave();
+});
+// Timer : activation/désactivation → active/désactive le champ intervalle
+document.getElementById('timer-enabled').addEventListener('change', (e) => {
+  document.getElementById('timer-interval').disabled = !e.target.checked;
+  localStorage.removeItem('timerNextAt');
+  localStorage.removeItem('autoRefreshNextAt');
+  autoSave();
+});
 
 // Section connexions & API : sauvegarde des secrets et changement de mot de passe
 document.getElementById('btn-save-secrets').addEventListener('click', saveSecrets);
