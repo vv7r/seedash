@@ -336,6 +336,7 @@ function autoSave() {
 async function loadSecrets() {
   try {
     const d = await fetch(BASE + '/api/config/secrets', { credentials: 'include' }).then(r => r.json());
+    document.getElementById('sec-c411-url').value      = d.c411_url      || '';
     document.getElementById('sec-qbit-url').value      = d.qbit_url      || '';
     document.getElementById('sec-qbit-username').value = d.qbit_username || '';
     document.getElementById('sec-ultracc-url').value   = d.ultracc_url   || '';
@@ -351,10 +352,27 @@ async function loadSecrets() {
   } catch (e) { console.error('[secrets]', e); }
 }
 
+/** Teste une connexion et met à jour la LED correspondante immédiatement. */
+const SERVICE_LABELS = { c411: 'C411', qbittorrent: 'qBittorrent', ultracc: 'Ultra.cc' };
+async function testConnection(service, ledId) {
+  setLed(ledId, 'checking');
+  const label = SERVICE_LABELS[service] || service;
+  try {
+    const d = await fetch(BASE + '/api/connections', { credentials: 'include' }).then(r => r.json());
+    const ok = d[service] === 'ok';
+    setLed(ledId, ok ? 'ok' : 'err');
+    toast(ok ? `${label} — Connexion OK` : `${label} — ${d[service] || 'Échec'}`, ok ? 'success' : 'error');
+  } catch {
+    setLed(ledId, 'err');
+    toast(`${label} — Erreur réseau`, 'error');
+  }
+}
+
 /** Envoie uniquement les champs secrets remplis via POST /api/config/secrets. */
 async function saveSecrets() {
   const body = {};
   const v = (id) => document.getElementById(id).value.trim();
+  if (v('sec-c411-url'))      body.c411_url      = v('sec-c411-url');
   if (v('sec-c411-apikey'))   body.c411_apikey   = v('sec-c411-apikey');
   if (v('sec-qbit-url'))      body.qbit_url       = v('sec-qbit-url');
   if (v('sec-qbit-username')) body.qbit_username  = v('sec-qbit-username');

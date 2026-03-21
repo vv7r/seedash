@@ -47,7 +47,7 @@ function clearTopRetry() {
 }
 
 // === FILTRAGE ===
-// getRuleVal() et filterTopItems() sont déflarées dans app.js (chargé après).
+// getRuleVal() et filterTopItems() sont déclarées dans app.js (chargé après).
 
 // === CATÉGORIE ===
 

@@ -49,6 +49,7 @@ async function loadStats() {
     const r = await fetch(BASE + '/api/stats', { credentials: 'include' });
     if (r.status === 401) { showLogin('Session expirée'); return; }
     const d = await r.json();
+    if (d.c411_base) c411Base = d.c411_base;
     document.getElementById('s-active').textContent  = d.active ?? '—';
     document.getElementById('s-ratio').textContent   = d.avg_ratio > 0 ? d.avg_ratio.toFixed(2) : '—';
     document.getElementById('s-dlspeed').textContent = fmtSpeed(d.dl_speed || 0);

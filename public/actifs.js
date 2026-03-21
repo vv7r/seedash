@@ -139,7 +139,7 @@ function actifsRowHTML(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn) {
   torrentDataMap.set(t.hash, t.name);
   return `<tr data-hash="${t.hash}">
     <td class="cell-status">${actifsStateBadge(t)}</td>
-    <td class="col-nom"><div class="td-name" title="${he(t.name)}"><a href="https://c411.org/torrents/${t.hash}" target="_blank" rel="noopener" class="td-link">${he(t.name)}</a></div></td>
+    <td class="col-nom"><div class="td-name" title="${he(t.name)}"><a href="${c411Base}/torrents/${t.hash}" target="_blank" rel="noopener" class="td-link">${he(t.name)}</a></div></td>
     <td class="td-size col-size">${fmtBytes(t.size)}</td>
     <td class="cell-ratio-td ratio-state-${ratioState}"><div class="prog-wrap">
       <div class="prog-bar-bg"><div class="cell-ratio-bar prog-bar" data-pct="${pct}"></div></div>

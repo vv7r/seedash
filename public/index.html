@@ -9,11 +9,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="SeeDash">
 <meta name="theme-color" content="#f5f4ef" id="meta-theme-color">
-<link rel="manifest" href="/seedash/manifest.json">
-<link rel="icon" type="image/png" href="/seedash/icon.png">
-<link rel="apple-touch-icon" href="/seedash/icon.png">
-<script src="/seedash/theme-init.js"></script>
-<link rel="stylesheet" href="/seedash/style.css">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<script src="theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -237,19 +237,10 @@
     <div class="card card-mt">
       <div class="section-sep">Connexions &amp; API</div>
 
-      <!-- C411 -->
-      <div class="cfg-section cfg-section-border">
-        <div class="rule-name cfg-title">C411</div>
-        <div class="cfg-fields-1">
-          <div class="rule-desc cfg-label">Clé API <span id="sec-c411-apikey-cur" class="cfg-hint"></span></div>
-          <input type="password" id="sec-c411-apikey" class="cfg-input">
-        </div>
-      </div>
-
       <!-- qBittorrent -->
       <div class="cfg-section cfg-section-border">
         <div class="rule-name cfg-title">qBittorrent</div>
-        <div class="cfg-fields-3">
+        <div class="cfg-fields-3-btn">
           <div>
             <div class="rule-desc cfg-label">URL</div>
             <input type="text" id="sec-qbit-url" class="cfg-input" placeholder="http://127.0.0.1:PORT">
@@ -262,13 +253,30 @@
             <div class="rule-desc cfg-label">Mot de passe <span id="sec-qbit-password-cur" class="cfg-hint"></span></div>
             <input type="password" id="sec-qbit-password" class="cfg-input">
           </div>
+          <div class="cfg-btn-align"><button class="btn-sm" id="btn-test-qbit">Test</button></div>
+        </div>
+      </div>
+
+      <!-- C411 -->
+      <div class="cfg-section cfg-section-border">
+        <div class="rule-name cfg-title">C411</div>
+        <div class="cfg-fields-2-btn">
+          <div>
+            <div class="rule-desc cfg-label">URL</div>
+            <input type="text" id="sec-c411-url" class="cfg-input" placeholder="https://c411.org/api/torznab">
+          </div>
+          <div>
+            <div class="rule-desc cfg-label">Clé API <span id="sec-c411-apikey-cur" class="cfg-hint"></span></div>
+            <input type="password" id="sec-c411-apikey" class="cfg-input">
+          </div>
+          <div class="cfg-btn-align"><button class="btn-sm" id="btn-test-c411">Test</button></div>
         </div>
       </div>
 
       <!-- Ultra.cc API -->
       <div class="cfg-section">
         <div class="rule-name cfg-title">Ultra.cc API</div>
-        <div class="cfg-fields-2">
+        <div class="cfg-fields-2-btn">
           <div>
             <div class="rule-desc cfg-label">URL</div>
             <input type="text" id="sec-ultracc-url" class="cfg-input" placeholder="https://user.host.usbx.me/ultra-api/total-stats">
@@ -277,7 +285,9 @@
             <div class="rule-desc cfg-label">Token <span id="sec-ultracc-token-cur" class="cfg-hint"></span></div>
             <input type="password" id="sec-ultracc-token" class="cfg-input">
           </div>
+          <div class="cfg-btn-align"><button class="btn-sm" id="btn-test-ultracc">Test</button></div>
         </div>
+
       </div>
 
       <div class="card-footer">
@@ -343,7 +353,7 @@
   </div>
 </div>
 
-<div id="toast" class="toast"></div>
+<div id="toast-container" class="toast-container"></div>
 
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal-box">
@@ -355,12 +365,12 @@
   </div>
 </div>
 
-<script src="/seedash/utils.js"></script>
-<script src="/seedash/stats.js"></script>
-<script src="/seedash/charts.js"></script>
-<script src="/seedash/top.js"></script>
-<script src="/seedash/actifs.js"></script>
-<script src="/seedash/rules.js"></script>
-<script src="/seedash/app.js"></script>
+<script src="utils.js"></script>
+<script src="stats.js"></script>
+<script src="charts.js"></script>
+<script src="top.js"></script>
+<script src="actifs.js"></script>
+<script src="rules.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
