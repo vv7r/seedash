@@ -164,11 +164,11 @@ tests/
 Le projet utilise le runner natif Node.js (`node:test`), sans dépendance externe.
 
 ```bash
-npm test        # 44 tests (cleaner-logic + grab-logic)
+npm test        # 63 tests (cleaner-logic + grab-logic)
 ```
 
 Toute contribution touchant `lib/cleaner.js` ou `lib/grab.js` doit :
-- Maintenir la couverture des 44 tests existants
+- Maintenir la couverture des 63 tests existants
 - Ajouter des tests pour les nouveaux cas de figure
 
 Les tests portent uniquement sur les fonctions pures exportées — pas de mock réseau, pas de mock base de données.

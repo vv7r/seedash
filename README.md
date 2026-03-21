@@ -71,7 +71,7 @@ Une fois le script terminé, ouvrez l'URL publique affichée dans le terminal po
 ### Commandes utiles
 
 ```bash
-npm test               # tests unitaires (44 tests, runner natif node:test)
+npm test               # tests unitaires (63 tests, runner natif node:test)
 pm2 reload seedash     # rechargement gracieux après modification du code
 pm2 logs seedash       # logs en temps réel
 pm2 flush seedash      # vider les logs
@@ -148,7 +148,7 @@ Champs retournés utilisés par SeeDash :
 - `monthly_upload_bytes` / `monthly_download_bytes` / `monthly_quota_bytes` — trafic mensuel
 - `hostname` — nom de l'hôte seedbox
 
-> L'API est mise en cache 120s côté serveur pour éviter les erreurs 429.
+> L'API est mise en cache 5 min côté serveur pour éviter les erreurs 429.
 > Le token est stocké chiffré AES-256-GCM dans `connections.json`.
 
 **Récupérer le token (via SSH) :**
@@ -437,7 +437,7 @@ seedash/
 │   ├── cleaner.js         — logique de nettoyage + timer setInterval
 │   ├── grab.js            — auto-grab (cycle, timer, filterCandidates)
 │   ├── qbit.js            — client qBittorrent (login, request, session)
-│   ├── ultracc.js         — client Ultra.cc (stats, cache TTL 120s)
+│   ├── ultracc.js         — client Ultra.cc (stats, cache TTL 5 min)
 │   └── helpers.js         — helpers purs (getIn, setIn, maskSecret, isHttpUrl)
 ├── public/
 │   ├── index.html         — HTML structurel pur (aucun style ni script inline)

@@ -135,7 +135,7 @@ function updateTopNextRefresh() {
  *  immédiatement sans déclencher un appel C411. */
 async function loadTopCache() {
   try {
-    const d = await fetch(`${BASE}/api/top-leechers/cache`, { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(`${BASE}/api/top-leechers/cache`, { credentials: 'include' }).then(r => r.json());
     updateTopLastRefresh(d.date);
     if (!d.items?.length) return;
     const items = filterTopItems(d.items);
@@ -158,7 +158,7 @@ async function loadTop(source = 'manuel') {
     tbody.innerHTML = `<tr><td colspan="6" class="tbl-empty">Chargement...</td></tr>`;
   }
   try {
-    const r = await fetch(`${BASE}/api/top-leechers?n=${n}`, { credentials: 'include' });
+    const r = await fetchT(`${BASE}/api/top-leechers?n=${n}`, { credentials: 'include' });
     if (r.status === 401) { showLogin('Session expirée'); return; }
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || `Erreur ${r.status}`);
