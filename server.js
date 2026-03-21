@@ -498,7 +498,7 @@ app.delete(`${cfg.baseurl}/api/torrents/:hash`, auth.requireAuth, async (req, re
   const { hash } = req.params;
   if (!/^[a-f0-9]{40}$/i.test(hash)) return res.status(400).json({ error: 'Hash invalide' });
   const deleteFiles = req.query.deleteFiles === 'true';
-  const name        = (req.query.name || hash).slice(0, 256);
+  const name        = String(req.query.name || hash).slice(0, 256);
   try {
     await qbit.qbitRequest('post', '/torrents/delete', `hashes=${hash}&deleteFiles=${deleteFiles}`);
     const lhash = hash.toLowerCase();
