@@ -228,15 +228,17 @@ function appendHistory(type, count, source, names = []) {
  */
 function initConfig() {
   let changed = false;
-  const DEFAULT_GRAB_RULES_ON  = { grab_limit_per_day: true, size_max_gb: true, active_max: false, min_leechers: false, min_seeders: false };
+  const DEFAULT_GRAB_RULES_ON  = { grab_limit_per_day: true, size_max_gb: true, active_max: false, min_leechers: false, min_seeders: false, network_max_pct: false };
   if (!cfg.auto_grab) {
-    cfg.auto_grab = { enabled: false, interval_minutes: 15, last_run: null, last_grab_count: 0,
-      rules: { grab_limit_per_day: 20, size_max_gb: 100, active_max: 15, min_leechers: 0, min_seeders: 0 },
+    cfg.auto_grab = { enabled: false, last_run: null, last_grab_count: 0,
+      rules: { grab_limit_per_day: 20, size_max_gb: 100, active_max: 15, min_leechers: 0, min_seeders: 0, network_max_pct: 90 },
       rules_on: { ...DEFAULT_GRAB_RULES_ON } };
     changed = true;
   }
-  if (!cfg.auto_grab.rules)    { cfg.auto_grab.rules    = { grab_limit_per_day: 20, size_max_gb: 100, active_max: 15, min_leechers: 0, min_seeders: 0 }; changed = true; }
+  if (!cfg.auto_grab.rules)    { cfg.auto_grab.rules    = { grab_limit_per_day: 20, size_max_gb: 100, active_max: 15, min_leechers: 0, min_seeders: 0, network_max_pct: 90 }; changed = true; }
   if (!cfg.auto_grab.rules_on) { cfg.auto_grab.rules_on = { ...DEFAULT_GRAB_RULES_ON }; changed = true; }
+  if (!('network_max_pct' in (cfg.auto_grab.rules || {})))    { cfg.auto_grab.rules.network_max_pct = 90;    changed = true; }
+  if (!('network_max_pct' in (cfg.auto_grab.rules_on || {}))) { cfg.auto_grab.rules_on.network_max_pct = false; changed = true; }
   const DEFAULT_CLEAN_RULES_ON = { ratio_min: true, ratio_max: false, age_min_hours: true, age_max_hours: false, upload_min_mb: true };
   if (!cfg.auto_clean) {
     cfg.auto_clean = { enabled: false, interval_hours: 1,
@@ -246,6 +248,11 @@ function initConfig() {
   if (!cfg.auto_clean.rules)    { cfg.auto_clean.rules    = { ratio_min: 1.0, age_min_hours: 48 }; changed = true; }
   if (!cfg.auto_clean.rules_on) { cfg.auto_clean.rules_on = { ...DEFAULT_CLEAN_RULES_ON }; changed = true; }
   // Initialiser les blocs de connexion s'ils sont absents (fresh install sans connections.json complet)
+  // Timer combiné clean → grab
+  if (!cfg.timer) {
+    cfg.timer = { enabled: false, interval_hours: cfg.auto_clean?.interval_hours || 6, last_run: null };
+    changed = true;
+  }
   if (!cfg.c411)        { cfg.c411        = { url: 'https://c411.org/api/torznab', apikey: '' }; }
   if (!cfg.qbittorrent) { cfg.qbittorrent = { url: '', username: '', password: '' }; }
   if (!cfg.ultracc_api) { cfg.ultracc_api = { url: '', token: '' }; }
@@ -652,12 +659,11 @@ app.post(`${cfg.baseurl}/api/cleaner/run`, auth.requireAuth, async (req, res) =>
 
 // POST /api/cleaner/schedule
 app.post(`${cfg.baseurl}/api/cleaner/schedule`, auth.requireAuth, (req, res) => {
-  const { interval_hours, enabled } = req.body;
-  const hours = Math.max(1, Math.min(8760, parseInt(interval_hours) || 1));
-  cfg.auto_clean = { ...cfg.auto_clean, interval_hours: hours, enabled: !!enabled };
+  const { enabled } = req.body;
+  cfg.auto_clean = { ...cfg.auto_clean, enabled: !!enabled };
+  cleaner.setEnabled(!!enabled);
   saveCfg();
-  cleaner.reschedule(hours, !!enabled);
-  console.log(`[cleaner] schedule mis à jour : ${hours}h, enabled=${!!enabled}`);
+  console.log(`[cleaner] enabled=${!!enabled}`);
   res.json({ ok: true, ...cleaner.getStatus() });
 });
 
@@ -868,18 +874,45 @@ app.post(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
 // GET /api/auto-refresh
 app.get(`${cfg.baseurl}/api/auto-refresh`, auth.requireAuth, (req, res) => {
   const st = grab.getStatus();
-  res.json({ enabled: cfg.auto_grab.enabled, interval_minutes: cfg.auto_grab.interval_minutes, last_run: st.last_run, last_run_source: st.last_run_source || 'auto', last_grab_count: st.last_grab_count, top_cache_date: topCache.date || null });
+  res.json({
+    grab_enabled:          cfg.auto_grab.enabled,
+    timer_enabled:         !!cfg.timer?.enabled,
+    timer_interval_hours:  cfg.timer?.interval_hours || 1,
+    last_run:              st.last_run,
+    last_run_source:       st.last_run_source || 'auto',
+    last_grab_count:       st.last_grab_count,
+    top_cache_date:        topCache.date || null,
+  });
 });
 
 // POST /api/auto-refresh
 app.post(`${cfg.baseurl}/api/auto-refresh`, auth.requireAuth, (req, res) => {
-  const { enabled, interval_minutes } = req.body;
-  cfg.auto_grab.enabled          = !!enabled;
-  cfg.auto_grab.interval_minutes = Math.max(1, parseInt(interval_minutes) || 15);
+  const { enabled } = req.body;
+  cfg.auto_grab.enabled = !!enabled;
+  grab.setEnabled(!!enabled);
   saveCfg();
-  grab.scheduleAutoGrab(appendHistory);
-  console.log(`[auto-refresh] enabled=${cfg.auto_grab.enabled}, interval=${cfg.auto_grab.interval_minutes}min`);
-  res.json({ ok: true, enabled: cfg.auto_grab.enabled, interval_minutes: cfg.auto_grab.interval_minutes });
+  console.log(`[auto-grab] enabled=${!!enabled}`);
+  res.json({ ok: true, grab_enabled: cfg.auto_grab.enabled });
+});
+
+// ============================================================
+// ROUTES TIMER
+// ============================================================
+
+// GET /api/timer/status
+app.get(`${cfg.baseurl}/api/timer/status`, auth.requireAuth, (req, res) => {
+  res.json({ enabled: !!cfg.timer?.enabled, interval_hours: cfg.timer?.interval_hours || 1, last_run: cfg.timer?.last_run || null });
+});
+
+// POST /api/timer/config
+app.post(`${cfg.baseurl}/api/timer/config`, auth.requireAuth, (req, res) => {
+  const { enabled, interval_hours } = req.body;
+  const hours = Math.max(1, Math.min(8760, parseInt(interval_hours) || 1));
+  cfg.timer = { ...cfg.timer, enabled: !!enabled, interval_hours: hours };
+  saveCfg();
+  scheduleTimer();
+  console.log(`[timer] config : ${hours}h, enabled=${!!enabled}`);
+  res.json({ ok: true, ...cfg.timer });
 });
 
 // ============================================================
@@ -979,12 +1012,61 @@ grab.init(cfg, { nameMap, categoryMap }, {
   saveCfg, saveNameMap, saveCategoryMap, appendTorrentList, appendHistory,
   qbitRequest: qbit.qbitRequest,
   isCleanRunning: () => cleaner.isRunning(),
+  getUltraccInfo: async () => {
+    const info = await ultracc.getUltraccStats();
+    return {
+      free_storage_gb:  info?.free_storage_gb           ?? null,
+      traffic_used_pct: info?.traffic_used_percentage != null
+        ? Math.round(info.traffic_used_percentage * 10) / 10 : null,
+    };
+  },
 }, TOP_CACHE_PATH);
+
+// ============================================================
+// TIMER COMBINÉ CLEAN → GRAB
+// ============================================================
+
+let timerTask    = null;
+let timerRunning = false;
+
+/**
+ * Planifie (ou replanifie) le timer combiné clean → grab.
+ * Vérifie toutes les minutes si l'intervalle configuré est écoulé.
+ * Séquence : clean (si enabled) → délai 10 s → grab (si enabled).
+ */
+function scheduleTimer() {
+  if (timerTask) { clearInterval(timerTask); timerTask = null; }
+  if (!cfg.timer?.enabled) { console.log('[timer] désactivé'); return; }
+  timerTask = setInterval(async () => {
+    if (timerRunning) return;
+    const intervalMs = (cfg.timer.interval_hours || 1) * 3600 * 1000;
+    const lastRun    = cfg.timer.last_run ? new Date(cfg.timer.last_run).getTime() : 0;
+    if (Date.now() - lastRun < intervalMs) return;
+    timerRunning       = true;
+    cfg.timer.last_run = new Date().toISOString();
+    saveCfg();
+    console.log('[timer] Cycle démarré');
+    try {
+      if (cfg.auto_clean?.enabled) await cleaner.runClean('auto');
+      await new Promise(r => setTimeout(r, 10000));
+      if (cfg.auto_grab?.enabled) {
+        const grabbed = await grab.runAutoGrab('auto');
+        if (grabbed > 0) appendHistory('grab', grabbed, 'auto', grab.getStatus().last_grabbed || []);
+      }
+      console.log('[timer] Cycle terminé');
+    } catch(e) {
+      console.error('[timer] Erreur cycle :', e.message);
+    } finally {
+      timerRunning = false;
+    }
+  }, 60 * 1000);
+  console.log(`[timer] planifié : toutes les ${cfg.timer.interval_hours}h`);
+}
 
 auth.initAuth(saveConn).then(() => {
   auth.decryptSecrets();
   saveCfg();
-  grab.scheduleAutoGrab(appendHistory);
+  scheduleTimer();
   pruneNameMap();
 
   app.listen(cfg.port, '0.0.0.0', () => {

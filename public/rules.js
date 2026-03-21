@@ -4,26 +4,29 @@
 let histData    = [];
 let histSortKey = localStorage.getItem('hist-sort-key') || 'date';
 let histSortDir = parseInt(localStorage.getItem('hist-sort-dir')) || -1;
-let cleanerNextAt    = null;
-let cleanerCountdown = null;
 let autoSaveTimer    = null;
-let lastSavedCleaner = { interval_hours: null, enabled: null };
+
+// État timer
+let timerNextAt    = null;
+let timerCountdown = null;
+let lastSavedTimer = { interval_hours: null, enabled: null };
 
 // === RÈGLES DÉFINITIONS ===
 
 /** Liste fixe ordonnée des règles auto-grab et auto-clean */
 const RULE_DEFS = [
-  { group: 'cond',  key: 'ratio_min',          name: 'Ratio minimum',             desc: 'Supprimer si ratio ≥ seuil',                                              unit: '',      step: 0.1, min: 0, defVal: 1.0,  defOn: true  },
-  { group: 'cond',  key: 'ratio_max',          name: 'Ratio maximum',             desc: 'Force la suppression malgré les autres règles si le ratio dépasse N',       unit: '',      step: 0.1, min: 0, defVal: 5.0,  defOn: false },
-  { group: 'cond',  key: 'age_min_hours',       name: 'Âge minimum',               desc: 'Supprimer si le torrent a été ajouté il y a plus de N jours',             unit: 'j',     step: 1,   min: 0, defVal: 2,    defOn: true,  displayScale: 24 },
-  { group: 'cond',  key: 'age_max_hours',       name: 'Âge maximum',               desc: 'Force la suppression malgré les autres règles si l\'âge dépasse N jours',   unit: 'j',     step: 1,   min: 0, defVal: 14,   defOn: false, displayScale: 24 },
-  { group: 'cond',  key: 'upload_min_mb',       name: 'Upload minimum',            desc: 'Supprimer si upload < N MB dans la fenêtre de temps ci-dessous',            unit: 'MB',    step: 100, min: 0, defVal: 500,  defOn: false },
-  { group: 'cond',  key: 'upload_window_hours', name: 'Fenêtre upload',            desc: 'Fenêtre de vérification de l\'upload minimum',                              unit: 'h',     step: 1,   min: 1, defVal: 48,   defOn: false, noToggle: true, linkedTo: 'upload_min_mb' },
-  { group: 'limit', key: 'grab_limit_per_day',  name: 'Grab automatique par jour', desc: 'Nombre max de torrents grabbés par jour',                                   unit: '/jour', step: 1,   min: 1, defVal: 20,   defOn: true  },
-  { group: 'limit', key: 'size_max_gb',         name: 'Taille max par torrent',    desc: 'Ignorer les torrents plus lourds',                                          unit: 'GB',    step: 1,   min: 1, defVal: 100,  defOn: true  },
-  { group: 'limit', key: 'active_max',          name: 'Max torrents simultanés',   desc: 'File d\'attente si limite atteinte',                                        unit: '',      step: 1,   min: 1, defVal: 15,   defOn: false },
-  { group: 'limit', key: 'min_leechers',        name: 'Leechers minimum',          desc: 'Ignorer les torrents avec moins de N leechers',                            unit: '',      step: 1,   min: 0, defVal: 5,    defOn: false },
-  { group: 'limit', key: 'min_seeders',         name: 'Seeders minimum',           desc: 'Ignorer les torrents avec moins de N seeders',                             unit: '',      step: 1,   min: 0, defVal: 3,    defOn: false },
+  { group: 'cond',  key: 'ratio_min',           name: 'Ratio minimum',              desc: 'Supprimer si ratio ≥ seuil',                                               unit: '',      step: 0.1, min: 0, defVal: 1.0,  defOn: true  },
+  { group: 'cond',  key: 'ratio_max',           name: 'Ratio maximum',              desc: 'Force la suppression malgré les autres règles si le ratio dépasse N',      unit: '',      step: 0.1, min: 0, defVal: 5.0,  defOn: false },
+  { group: 'cond',  key: 'age_min_hours',       name: 'Âge minimum',                desc: 'Supprimer si le torrent a été ajouté il y a plus de N jours',              unit: 'j',     step: 1,   min: 0, defVal: 2,    defOn: true,  displayScale: 24 },
+  { group: 'cond',  key: 'age_max_hours',       name: 'Âge maximum',                desc: 'Force la suppression malgré les autres règles si l\'âge dépasse N jours',  unit: 'j',     step: 1,   min: 0, defVal: 14,   defOn: false, displayScale: 24 },
+  { group: 'cond',  key: 'upload_min_mb',       name: 'Upload minimum',             desc: 'Supprimer si upload < N MB dans la fenêtre de temps ci-dessous',           unit: 'MB',    step: 100, min: 0, defVal: 500,  defOn: false },
+  { group: 'cond',  key: 'upload_window_hours', name: 'Fenêtre upload',             desc: 'Fenêtre de vérification de l\'upload minimum',                             unit: 'h',     step: 1,   min: 1, defVal: 48,   defOn: false, noToggle: true, linkedTo: 'upload_min_mb' },
+  { group: 'limit', key: 'grab_limit_per_day',  name: 'Grab automatique par jour',  desc: 'Nombre max de torrents grabbés par jour',                                  unit: '/jour', step: 1,   min: 1, defVal: 20,   defOn: true  },
+  { group: 'limit', key: 'size_max_gb',         name: 'Taille max par torrent',     desc: 'Ignorer les torrents plus lourds',                                         unit: 'GB',    step: 1,   min: 1, defVal: 100,  defOn: true  },
+  { group: 'limit', key: 'active_max',          name: 'Max torrents simultanés',    desc: 'Stoppe le grab si limite atteinte',                                       unit: '',      step: 1,   min: 1, defVal: 15,   defOn: false },
+  { group: 'limit', key: 'min_leechers',        name: 'Leechers minimum',           desc: 'Ignorer les torrents avec moins de N leechers',                            unit: '',      step: 1,   min: 0, defVal: 5,    defOn: false },
+  { group: 'limit', key: 'min_seeders',         name: 'Seeders minimum',            desc: 'Ignorer les torrents avec moins de N seeders',                             unit: '',      step: 1,   min: 0, defVal: 3,    defOn: false },
+  { group: 'limit', key: 'network_max_pct',     name: 'Trafic réseau maximum',      desc: 'Stoppe le grab si le trafic mensuel Ultra.cc dépasse N%',                  unit: '%',     step: 1,   min: 1, defVal: 90,   defOn: false },
 ];
 
 // === RÈGLES CHARGEMENT / RENDU ===
@@ -120,43 +123,37 @@ async function saveRules() {
   }
 }
 
-// === CLEANER COUNTDOWN ===
+// === TIMER COUNTDOWN ===
 
-/** Met à jour l'affichage du temps restant avant la prochaine exécution du cleaner. */
-function updateCleanerNextRun() {
-  const el = document.getElementById('cleaner-next-run');
+/** Met à jour l'affichage du temps restant avant le prochain cycle Timer. */
+function updateTimerNextRun() {
+  const el = document.getElementById('timer-next-run');
   if (!el) return;
-  if (!cleanerNextAt) { el.textContent = 'Prochaine : Jamais'; return; }
-  const secs = Math.max(0, Math.round((cleanerNextAt - Date.now()) / 1000));
+  if (!timerNextAt) { el.textContent = 'Prochain cycle : Jamais'; return; }
+  const secs = Math.max(0, Math.round((timerNextAt - Date.now()) / 1000));
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   const s = secs % 60;
   el.textContent = h > 0
-    ? `Prochaine dans : ${h} h ${String(m).padStart(2,'0')} min`
-    : `Prochaine dans : ${m} min ${String(s).padStart(2,'0')} sec`;
+    ? `Prochain cycle dans : ${h} h ${String(m).padStart(2,'0')} min`
+    : `Prochain cycle dans : ${m} min ${String(s).padStart(2,'0')} sec`;
 }
 
-/** Calcule cleanerNextAt et démarre le setInterval de compte à rebours du cleaner. */
-function applyCleanerCountdown(intervalHours, enabled) {
-  clearInterval(cleanerCountdown); cleanerCountdown = null;
+/** Calcule timerNextAt et démarre le setInterval du compte à rebours Timer. */
+function applyTimerCountdown(intervalHours, enabled) {
+  clearInterval(timerCountdown); timerCountdown = null;
   if (!enabled) {
-    cleanerNextAt = null;
-    localStorage.removeItem('cleanerNextAt');
-    updateCleanerNextRun();
+    timerNextAt = null;
+    localStorage.removeItem('timerNextAt');
+    updateTimerNextRun();
     return;
   }
   const intervalMs = (intervalHours || 1) * 3600000;
-  const stored     = parseInt(localStorage.getItem('cleanerNextAt') || '0');
-  if (stored > Date.now()) {
-    // Valeur persistée (rechargement de page) : on la réutilise telle quelle
-    cleanerNextAt = stored;
-  } else {
-    // Aucune valeur persistée (premier enable ou re-enable après disable) : on repart de now
-    cleanerNextAt = Date.now() + intervalMs;
-    localStorage.setItem('cleanerNextAt', cleanerNextAt);
-  }
-  cleanerCountdown = setInterval(updateCleanerNextRun, 1000);
-  updateCleanerNextRun();
+  const stored     = parseInt(localStorage.getItem('timerNextAt') || '0');
+  timerNextAt = stored > Date.now() ? stored : Date.now() + intervalMs;
+  if (!(stored > Date.now())) localStorage.setItem('timerNextAt', timerNextAt);
+  timerCountdown = setInterval(updateTimerNextRun, 1000);
+  updateTimerNextRun();
 }
 
 // === CLEANER ===
@@ -166,31 +163,52 @@ async function loadCleanerStatus() {
   try {
     const d = await fetch(BASE + '/api/cleaner/status', { credentials: 'include' }).then(r => r.json());
     cleanerEnabled = !!d.enabled;
-    document.getElementById('cleaner-enabled').checked   = !!d.enabled;
-    document.getElementById('cleaner-interval').value    = d.interval_hours || 1;
-    document.getElementById('cleaner-interval').disabled = !d.enabled;
-    document.getElementById('cleaner-last-run').textContent      = fmtDate(d.last_run);
-    document.getElementById('cleaner-last-count').textContent    = d.last_deleted_count ?? '—';
+    document.getElementById('cleaner-enabled').checked        = !!d.enabled;
+    document.getElementById('cleaner-last-run').textContent   = fmtDate(d.last_run);
+    document.getElementById('cleaner-last-count').textContent = d.last_deleted_count ?? '—';
     document.getElementById('cleaner-last-run-type').textContent = d.last_run_type ? `· ${d.last_run_type}` : '';
-    lastSavedCleaner = { interval_hours: d.interval_hours || 1, enabled: !!d.enabled };
-    applyCleanerCountdown(d.interval_hours, d.enabled);
   } catch (e) { console.error('[cleaner]', e); }
 }
 
-/** Sauvegarde la planification du cleaner via POST /api/cleaner/schedule. */
+/** Sauvegarde le toggle cleaner via POST /api/cleaner/schedule. */
 async function saveCleanerSchedule() {
-  const interval_hours = parseInt(document.getElementById('cleaner-interval').value) || 1;
-  const enabled        = document.getElementById('cleaner-enabled').checked;
+  const enabled = document.getElementById('cleaner-enabled').checked;
   const r = await fetch(BASE + '/api/cleaner/schedule', {
+    method: 'POST',
+    headers: authHeaders(),
+    credentials: 'include',
+    body: JSON.stringify({ enabled })
+  });
+  if (!r.ok) throw new Error(`cleaner ${r.status}`);
+  await loadCleanerStatus();
+}
+
+/** Charge la config Timer depuis /api/timer/status et peuple le formulaire. */
+async function loadTimerStatus() {
+  try {
+    const d = await fetch(BASE + '/api/timer/status', { credentials: 'include' }).then(r => r.json());
+    document.getElementById('timer-enabled').checked   = !!d.enabled;
+    document.getElementById('timer-interval').value    = d.interval_hours || 1;
+    document.getElementById('timer-interval').disabled = !d.enabled;
+    lastSavedTimer = { interval_hours: d.interval_hours || 1, enabled: !!d.enabled };
+    applyTimerCountdown(d.interval_hours, d.enabled);
+  } catch (e) { console.error('[timer]', e); }
+}
+
+/** Sauvegarde la config Timer via POST /api/timer/config. */
+async function saveTimerConfig() {
+  const interval_hours = parseInt(document.getElementById('timer-interval').value) || 1;
+  const enabled        = document.getElementById('timer-enabled').checked;
+  const r = await fetch(BASE + '/api/timer/config', {
     method: 'POST',
     headers: authHeaders(),
     credentials: 'include',
     body: JSON.stringify({ interval_hours, enabled })
   });
-  if (!r.ok) throw new Error(`cleaner ${r.status}`);
-  const changed = interval_hours !== lastSavedCleaner.interval_hours || enabled !== lastSavedCleaner.enabled;
-  if (changed) localStorage.removeItem('cleanerNextAt');
-  await loadCleanerStatus();
+  if (!r.ok) throw new Error(`timer ${r.status}`);
+  const changed = interval_hours !== lastSavedTimer.interval_hours || enabled !== lastSavedTimer.enabled;
+  if (changed) { localStorage.removeItem('timerNextAt'); localStorage.removeItem('autoRefreshNextAt'); }
+  await loadTimerStatus();
 }
 
 /** Exécute le cleaner immédiatement via POST /api/cleaner/run. */
@@ -316,12 +334,12 @@ async function loadHistory() {
 
 // === AUTO-SAVE ===
 
-/** Déclenche une sauvegarde groupée différée (debounce 600 ms) des règles, cleaner et auto-refresh. */
+/** Déclenche une sauvegarde groupée différée (debounce 600 ms) des règles, cleaner, timer et auto-refresh. */
 function autoSave() {
   clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(async () => {
     try {
-      const results = await Promise.allSettled([saveRules(), saveCleanerSchedule(), saveAutoRefresh()]);
+      const results = await Promise.allSettled([saveRules(), saveCleanerSchedule(), saveTimerConfig(), saveAutoRefresh()]);
       const failed = results.filter(r => r.status === 'rejected');
       if (failed.length) toast('Erreur sauvegarde : ' + (failed[0].reason?.message || 'inconnue'), 'error');
     } catch (e) {
