@@ -9,23 +9,25 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+---
+
+## [1.5.1] - 2026-03-21
+
 ### Ajouté
-- `logs/auto.log` — journal unifié cleaner + grab (remplace `cleaner.log`) ; chaque ligne porte un préfixe `[cleaner]` ou `[auto-grab]`
+- `logs/auto.log` — journal unifié cleaner + grab (remplace `cleaner.log`) ; préfixes `[auto-cleaner]`, `[manuel-cleaner]`, `[auto-grab]`, `[manuel-grab]`
 
 ### Modifié
 - `grab.js` : toutes les traces écrites dans `auto.log` via `log()` (plus de console.log isolé)
+- `'use strict'` ajouté en tête de tous les fichiers frontend
+- `doLogout` : catch silencieux remplacé par `console.warn`
+
+### Corrigé
+- **XSS** : `he()` appliqué sur le hash dans `actifs.js` et l'URL dans `rules.js` (interpolation innerHTML)
 
 ### Sécurité
-- **XSS** : `he()` appliqué sur le hash dans `actifs.js` et l'URL dans `rules.js` (interpolation innerHTML)
 - **loginAttempts** : cap à 10 000 entrées pour résister aux attaques DDoS distribuées
 - **token_expiry** : valeur validée côté serveur contre une liste blanche (1h→168h), fallback `24h`
 - **fetch() timeout** : `fetchT()` ajouté dans `utils.js` (AbortController 10s) — tous les appels frontend migrent vers cette fonction
-
-### Modifié
-- `'use strict'` ajouté en tête de tous les fichiers frontend
-- `doLogout` : catch silencieux remplacé par `console.warn`
-- Commentaire obsolète corrigé dans `cleaner.js`
-- `cleaner.log` restauré dans l'arborescence `logs/` du README
 
 ---
 
@@ -127,7 +129,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.0...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/vv7r/seedash/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/vv7r/seedash/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/vv7r/seedash/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/vv7r/seedash/compare/v1.2.1...v1.3.0
