@@ -7,6 +7,19 @@
 
 Dashboard Node.js/Express pour gérer une seedbox Ultra.cc : tracker C411 (Torznab) + qBittorrent.
 
+## Aperçu
+
+<table>
+  <tr valign="top">
+    <td align="center"><a href="screenshots/stats.png"><img src="screenshots/stats.png" width="160" alt="Stats globales"></a><br><a href="screenshots/configapi.png"><img src="screenshots/configapi.png" width="160" alt="Connexions API"></a><br><a href="screenshots/led.png"><img src="screenshots/led.png" width="160" alt="LEDs de statut"></a></td>
+    <td align="center"><a href="screenshots/topleecher.png"><img src="screenshots/topleecher.png" width="160" alt="Top leechers"></a></td>
+    <td align="center"><a href="screenshots/torrentactif.png"><img src="screenshots/torrentactif.png" width="160" alt="Torrents actifs"></a></td>
+    <td align="center"><a href="screenshots/torrentactifchart.png"><img src="screenshots/torrentactifchart.png" width="160" alt="Courbe upload"></a><br><a href="screenshots/chart.png"><img src="screenshots/chart.png" width="160" alt="Graphique ratio"></a></td>
+    <td align="center"><a href="screenshots/history.png"><img src="screenshots/history.png" width="160" alt="Historique"></a></td>
+    <td align="center"><a href="screenshots/config.png"><img src="screenshots/config.png" width="160" alt="Configuration"></a></td>
+  </tr>
+</table>
+
 ## Fonctionnalités
 
 - **Top leechers** — top des torrents C411 par leechers, filtrage par catégorie, tri par colonne, grab direct vers qBittorrent
