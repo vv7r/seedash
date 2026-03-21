@@ -1,6 +1,6 @@
 'use strict';
 
-const { filterCandidates } = require('../lib/grab');
+const { filterCandidates, checkGrabConditions } = require('../lib/grab');
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -194,6 +194,119 @@ describe('filterCandidates — combinaisons de filtres', () => {
     assert.equal(result.length, 2);
     assert.equal(result[0].infohash, 'ok1');
     assert.equal(result[1].infohash, 'ok2');
+  });
+
+});
+
+// ── Tests — checkGrabConditions : réseau ─────────────────────────────────────
+
+describe('checkGrabConditions — network_max_pct', () => {
+
+  it('trafic ≥ seuil → interdit', () => {
+    const r = checkGrabConditions({ network_max_pct: 80 }, {}, { traffic_used_pct: 85 }, []);
+    assert.equal(r.allowed, false);
+    assert.ok(r.reason.includes('réseau'));
+  });
+
+  it('trafic exactement au seuil → interdit', () => {
+    const r = checkGrabConditions({ network_max_pct: 80 }, {}, { traffic_used_pct: 80 }, []);
+    assert.equal(r.allowed, false);
+  });
+
+  it('trafic < seuil → autorisé', () => {
+    const r = checkGrabConditions({ network_max_pct: 80 }, {}, { traffic_used_pct: 75 }, []);
+    assert.equal(r.allowed, true);
+  });
+
+  it('règle désactivée → autorisé même si trafic ≥ seuil', () => {
+    const r = checkGrabConditions({ network_max_pct: 80 }, { network_max_pct: false }, { traffic_used_pct: 99 }, []);
+    assert.equal(r.allowed, true);
+  });
+
+  it('ultraccInfo null → autorisé (non bloquant)', () => {
+    const r = checkGrabConditions({ network_max_pct: 80 }, {}, null, []);
+    assert.equal(r.allowed, true);
+  });
+
+  it('traffic_used_pct absent dans info → autorisé', () => {
+    const r = checkGrabConditions({ network_max_pct: 80 }, {}, { free_storage_gb: 100 }, []);
+    assert.equal(r.allowed, true);
+  });
+
+  it('network_max_pct = 0 → traité comme inactif (pas de blocage)', () => {
+    const r = checkGrabConditions({ network_max_pct: 0 }, {}, { traffic_used_pct: 99 }, []);
+    assert.equal(r.allowed, true);
+  });
+
+});
+
+// ── Tests — checkGrabConditions : combinaisons ───────────────────────────────
+
+describe('checkGrabConditions — combinaisons', () => {
+
+  it('réseau ok + disque insuffisant → interdit (disque)', () => {
+    const candidates = [{ size: 20e9 }]; // 20 GB
+    const info = { traffic_used_pct: 50, free_storage_gb: 10 };
+    const r = checkGrabConditions({ network_max_pct: 80 }, {}, info, candidates);
+    assert.equal(r.allowed, false);
+    assert.ok(r.reason.includes('espace insuffisant'));
+  });
+
+  it('réseau bloquant → retour immédiat, disque non évalué', () => {
+    const candidates = [{ size: 1e9 }]; // disque ok si évalué
+    const info = { traffic_used_pct: 95, free_storage_gb: 10 };
+    const r = checkGrabConditions({ network_max_pct: 80 }, {}, info, candidates);
+    assert.equal(r.allowed, false);
+    assert.ok(r.reason.includes('réseau'));
+  });
+
+  it('réseau ok + disque ok → autorisé', () => {
+    const candidates = [{ size: 3e9 }];
+    const info = { traffic_used_pct: 50, free_storage_gb: 10 };
+    const r = checkGrabConditions({ network_max_pct: 80 }, {}, info, candidates);
+    assert.equal(r.allowed, true);
+  });
+
+});
+
+// ── Tests — checkGrabConditions : espace disque ──────────────────────────────
+
+describe('checkGrabConditions — espace disque', () => {
+
+  it('taille totale > espace libre → interdit', () => {
+    const candidates = [{ size: 8e9 }, { size: 5e9 }]; // 13 GB
+    const r = checkGrabConditions({}, {}, { free_storage_gb: 10 }, candidates);
+    assert.equal(r.allowed, false);
+    assert.ok(r.reason.includes('espace insuffisant'));
+  });
+
+  it('taille totale ≤ espace libre → autorisé', () => {
+    const candidates = [{ size: 4e9 }, { size: 3e9 }]; // 7 GB
+    const r = checkGrabConditions({}, {}, { free_storage_gb: 10 }, candidates);
+    assert.equal(r.allowed, true);
+  });
+
+  it('taille totale exactement égale à espace libre → autorisé', () => {
+    const candidates = [{ size: 10e9 }]; // 10 GB
+    const r = checkGrabConditions({}, {}, { free_storage_gb: 10 }, candidates);
+    assert.equal(r.allowed, true);
+  });
+
+  it('ultraccInfo null → autorisé (non bloquant)', () => {
+    const candidates = [{ size: 999e9 }];
+    const r = checkGrabConditions({}, {}, null, candidates);
+    assert.equal(r.allowed, true);
+  });
+
+  it('free_storage_gb absent dans info → autorisé', () => {
+    const candidates = [{ size: 999e9 }];
+    const r = checkGrabConditions({}, {}, { traffic_used_pct: 50 }, candidates);
+    assert.equal(r.allowed, true);
+  });
+
+  it('aucun candidat → toujours autorisé', () => {
+    const r = checkGrabConditions({}, {}, { free_storage_gb: 0.001 }, []);
+    assert.equal(r.allowed, true);
   });
 
 });

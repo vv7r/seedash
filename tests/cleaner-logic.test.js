@@ -192,6 +192,28 @@ describe('shouldDelete — règle upload_min_mb', () => {
     assert.equal(shouldDelete(t, DEFAULT_RULES, rulesOn, hist, NOW), true);
   });
 
+  it('upload_min_mb = 0 → traité comme inactif (uploadCheck=true)', () => {
+    const t = torrent('zero1', 2.0, 50 * 3600);
+    const rules = { ...DEFAULT_RULES, upload_min_mb: 0 };
+    const rulesOn = { ratio_max: false, age_max_hours: false };
+    // upload_min_mb=0 → uploadMinMb=null → uploadCheck=true → suppression selon ratio+âge
+    assert.equal(shouldDelete(t, rules, rulesOn, {}, NOW), true);
+  });
+
+  it('upload delta exactement au seuil → non supprimé (condition stricte <)', () => {
+    const t = torrent('exact1', 2.0, 50 * 3600);
+    const hist = uploadHistory('exact1', 500); // exactement 500 MB = seuil
+    const rulesOn = { ratio_max: false, age_max_hours: false };
+    assert.equal(shouldDelete(t, DEFAULT_RULES, rulesOn, hist, NOW), false);
+  });
+
+  it('upload_min_mb seule règle min active (ratio_min + age_min désactivés)', () => {
+    const t    = torrent('solo1', 0.0, 1 * 3600); // ratio et âge non satisfaits
+    const hist = uploadHistory('solo1', 200);       // 200 MB < 500 MB → uploadCheck=true
+    const rulesOn = { ratio_min: false, age_min_hours: false, ratio_max: false, age_max_hours: false };
+    assert.equal(shouldDelete(t, DEFAULT_RULES, rulesOn, hist, NOW), true);
+  });
+
 });
 
 // ── Tests — Combinaisons et cas limites ──────────────────────────────────────
