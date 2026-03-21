@@ -25,7 +25,14 @@ echo ""
 # ─── 1. Prérequis ────────────────────────────────────────────────────────────
 sep "Vérification des prérequis"
 if ! command -v node >/dev/null 2>&1; then
-  err "Node.js introuvable — installez-le d'abord :\n\n    bash <(wget -qO- https://scripts.ultra.cc/util-v2/LanguageInstaller/Node-Installer/main.sh)\n\n  Puis reconnectez-vous en SSH et relancez ce script."
+  info "Node.js introuvable — installation via le script Ultra.cc..."
+  bash <(wget -qO- https://scripts.ultra.cc/util-v2/LanguageInstaller/Node-Installer/main.sh) \
+    || err "Échec de l'installation de Node.js"
+  # Charge NVM dans la session courante sans reconnexion SSH
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  command -v node >/dev/null 2>&1 || err "node toujours introuvable après installation — reconnectez-vous en SSH et relancez"
+  ok "Node.js installé : $(node -v)"
 fi
 command -v npm  >/dev/null 2>&1 || err "npm introuvable"
 command -v curl >/dev/null 2>&1 || err "curl introuvable"
