@@ -22,6 +22,52 @@ Dashboard Node.js/Express pour gérer une seedbox Ultra.cc : tracker C411 (Torzn
 
 ---
 
+## Installation sur Ultra.cc depuis zéro
+
+### Prérequis
+
+- Accès SSH à votre seedbox Ultra.cc ([doc](https://docs.ultra.cc/connection-details/ssh))
+- qBittorrent installé via le panneau Ultra.cc ([doc](https://docs.ultra.cc/applications/qbittorrent) — `https://cp.ultra.cc` → Applications → qBittorrent)
+- Node.js installé sur votre seedbox — via le [script officieux Ultra.cc](https://docs.ultra.cc/unofficial-language-installers/install-nodejs) : `bash <(wget -qO- https://scripts.ultra.cc/util-v2/LanguageInstaller/Node-Installer/main.sh)` (puis reconnexion SSH)
+- PM2 disponible — si absent : `npm install -g pm2`
+
+### Installation automatique (recommandée)
+
+```bash
+cd ~
+git clone https://github.com/vv7r/seedash seedash
+cd seedash
+bash install.sh
+```
+
+Le script `install.sh` prend en charge automatiquement :
+- Détection d'un port libre (`app-ports free`)
+- Installation des dépendances npm
+- Démarrage via PM2
+- Détection et enregistrement des connexions :
+  - qBittorrent (port + identifiant depuis `~/.config/qBittorrent/qBittorrent.conf`)
+  - Ultra.cc API (URL depuis `hostname -f`, token depuis la base SQLite du script Ultra API — installé automatiquement si absent)
+
+Seule interaction requise :
+- **Base URL** (Entrée = `/seedash`)
+
+Le proxy Nginx (`~/.config/nginx/proxy.d/`) est configuré et rechargé automatiquement via `app-nginx reload`.
+
+Une fois le script terminé, ouvrez l'URL publique affichée dans le terminal pour créer votre compte (page de premier démarrage), puis renseignez le **mot de passe qBittorrent** et la **clé API C411** dans **Configuration → Connexions & API**.
+
+### Commandes utiles
+
+```bash
+npm test               # tests unitaires (44 tests, runner natif node:test)
+pm2 reload seedash     # rechargement gracieux après modification du code
+pm2 logs seedash       # logs en temps réel
+pm2 flush seedash      # vider les logs
+pm2 stop seedash       # arrêt
+pm2 delete seedash     # suppression du processus PM2
+```
+
+---
+
 ## APIs externes utilisées
 
 ### C411 — API Torznab (RSS/XML)
@@ -106,52 +152,6 @@ L'URL à renseigner dans SeeDash suit ce format :
 https://<user>.<host>.usbx.me/ultra-api/total-stats
 ```
 où `<user>` et `<host>` sont visibles dans votre panneau Ultra.cc ou via `hostname -f` en SSH.
-
----
-
-## Installation sur Ultra.cc depuis zéro
-
-### Prérequis
-
-- Accès SSH à votre seedbox Ultra.cc ([doc](https://docs.ultra.cc/connection-details/ssh))
-- qBittorrent installé via le panneau Ultra.cc ([doc](https://docs.ultra.cc/applications/qbittorrent) — `https://cp.ultra.cc` → Applications → qBittorrent)
-- Node.js installé sur votre seedbox — via le [script officieux Ultra.cc](https://docs.ultra.cc/unofficial-language-installers/install-nodejs) : `bash <(wget -qO- https://scripts.ultra.cc/util-v2/LanguageInstaller/Node-Installer/main.sh)` (puis reconnexion SSH)
-- PM2 disponible — si absent : `npm install -g pm2`
-
-### Installation automatique (recommandée)
-
-```bash
-cd ~
-git clone https://github.com/vv7r/seedash seedash
-cd seedash
-bash install.sh
-```
-
-Le script `install.sh` prend en charge automatiquement :
-- Détection d'un port libre (`app-ports free`)
-- Installation des dépendances npm
-- Démarrage via PM2
-- Détection et enregistrement des connexions :
-  - qBittorrent (port + identifiant depuis `~/.config/qBittorrent/qBittorrent.conf`)
-  - Ultra.cc API (URL depuis `hostname -f`, token depuis la base SQLite du script Ultra API — installé automatiquement si absent)
-
-Seule interaction requise :
-- **Base URL** (Entrée = `/seedash`)
-
-Le proxy Nginx (`~/.config/nginx/proxy.d/`) est configuré et rechargé automatiquement via `app-nginx reload`.
-
-Une fois le script terminé, ouvrez l'URL publique affichée dans le terminal pour créer votre compte (page de premier démarrage), puis renseignez le **mot de passe qBittorrent** et la **clé API C411** dans **Configuration → Connexions & API**.
-
-### Commandes utiles
-
-```bash
-npm test               # tests unitaires (44 tests, runner natif node:test)
-pm2 reload seedash     # rechargement gracieux après modification du code
-pm2 logs seedash       # logs en temps réel
-pm2 flush seedash      # vider les logs
-pm2 stop seedash       # arrêt
-pm2 delete seedash     # suppression du processus PM2
-```
 
 ---
 
