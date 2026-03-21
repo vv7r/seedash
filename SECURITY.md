@@ -8,7 +8,7 @@ Seule la dernière version en date est activement maintenue et reçoit des corre
 
 **Ne pas ouvrir une issue publique pour un problème de sécurité.**
 
-Si vous découvrez une vulnérabilité (ex : fuite de clé API, injection, exécution de code arbitraire), contactez-nous via les [Security Advisories](../../security/advisories) de GitHub, ou ouvrez un rapport privé.
+Si vous découvrez une vulnérabilité (ex : fuite de clé API, injection, exécution de code arbitraire), ouvrez un rapport privé via l'onglet **Security** du dépôt GitHub.
 
 Indiquez :
 - La nature du problème
@@ -23,4 +23,3 @@ Nous nous engageons à répondre sous 72 heures et à publier un correctif dans 
 - Utilisez des clés API avec les permissions minimales nécessaires.
 - Ne partagez pas votre clé API C411 — elle est personnelle et liée à votre compte.
 - N'exposez pas SeeDash sur Internet sans reverse proxy HTTPS et sans audit préalable.
-- Changez le mot de passe admin dès le premier démarrage via la page de setup.
