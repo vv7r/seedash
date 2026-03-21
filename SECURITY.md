@@ -2,11 +2,7 @@
 
 ## Versions supportées
 
-| Version | Support sécurité |
-|---------|-----------------|
-| 1.5.x   | ✅ Actif |
-| 1.4.x   | ⚠️ Correctifs critiques uniquement |
-| < 1.4   | ❌ Non supporté |
+Seule la dernière version en date est activement maintenue et reçoit des correctifs de sécurité.
 
 ## Signaler une vulnérabilité
 
