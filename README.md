@@ -41,11 +41,16 @@ C411 expose une API compatible **Torznab** (extension du standard RSS/Atom pour 
 
 Champs extraits par SeeDash :
 - `item.title` — nom du torrent
+- `item.guid` — infohash SHA1 (identique à `torznab:attr name="infohash"`)
+- `enclosure url` — URL de téléchargement du `.torrent` (`/api?t=get&id={hash}&apikey={key}`)
 - `torznab:attr name="infohash"` — hash SHA1 du torrent
-- `torznab:attr name="magneturl"` — lien magnet pour l'ajout dans qBittorrent
 - `torznab:attr name="size"` — taille en octets
-- `torznab:attr name="seeders"` / `"leechers"` — état du swarm
+- `torznab:attr name="seeders"` — nombre de seeders
+- `torznab:attr name="peers"` — seeders + leechers (les leechers sont calculés : `peers - seeders`)
 - `torznab:attr name="category"` — catégorie numérique
+- `torznab:attr name="downloadvolumefactor"` — `0` = freeleech (le téléchargement ne compte pas dans le ratio)
+
+> L'API C411 ne fournit pas de `magneturl`. SeeDash passe l'URL `enclosure` directement à qBittorrent via `POST /torrents/add`.
 
 > La clé API C411 est stockée chiffrée AES-256-GCM dans `connections.json`.
 
