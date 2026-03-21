@@ -20,7 +20,7 @@
 <!-- Setup screen (premier démarrage) -->
 <div class="login-screen" id="setup-screen">
   <div class="login-box">
-    <div class="login-title"><div class="dot"></div> SeeDash — Premier démarrage</div>
+    <div class="login-title"><div class="dot"></div> SeeDash — Premier démarrage<button class="btn-theme btn-theme-screen"></button></div>
     <p class="setup-intro">Créez votre compte administrateur pour commencer.</p>
     <div class="login-field">
       <label>Nom d'utilisateur</label>
@@ -42,7 +42,7 @@
 <!-- Login screen -->
 <div class="login-screen" id="login-screen">
   <div class="login-box">
-    <div class="login-title"><div class="dot"></div> SeeDash</div>
+    <div class="login-title"><div class="dot"></div> SeeDash<button class="btn-theme btn-theme-screen"></button></div>
     <div class="login-field">
       <label>Nom d'utilisateur</label>
       <input type="text" id="login-username" autocomplete="username" autocapitalize="none" placeholder="admin">
@@ -174,18 +174,38 @@
   <!-- Tab: Règles / Configuration -->
   <div id="sec-regles" class="section">
 
+    <!-- Timer -->
+    <div class="card">
+      <div class="section-sep">Timer</div>
+      <div class="rule-row">
+        <div class="rule-meta">
+          <div class="rule-name">Cycle automatique</div>
+          <div class="rule-desc">Enchaîne Auto clean puis Auto grab selon les toggles activés</div>
+        </div>
+        <div class="rule-input-wrap">
+          <input type="number" id="timer-interval" value="6" min="1">
+        </div>
+        <span class="rule-unit">h</span>
+        <div class="rule-actions">
+          <input type="checkbox" class="toggle" id="timer-enabled">
+        </div>
+      </div>
+      <div class="card-footer">
+        <div class="footer-info">
+          <span id="timer-next-run"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- Auto grab -->
     <div class="card">
       <div class="section-sep">Auto grab</div>
       <div class="rule-row">
         <div class="rule-meta">
-          <div class="rule-name">Actualisation et grab automatiques</div>
-          <div class="rule-desc">Rafraîchit le top leechers et grabbe les meilleurs torrents selon les règles ci-dessous</div>
+          <div class="rule-name">Grab automatique</div>
+          <div class="rule-desc">Grabbe les meilleurs torrents selon les règles ci-dessous lors du cycle Timer</div>
         </div>
-        <div class="rule-input-wrap">
-          <input type="number" id="autorefresh-interval" value="15" min="1">
-        </div>
-        <span class="rule-unit">min</span>
+        <div></div><div></div>
         <div class="rule-actions">
           <input type="checkbox" class="toggle" id="autorefresh-enabled">
         </div>
@@ -193,9 +213,7 @@
       <div id="rules-limit"></div>
       <div class="card-footer">
         <div class="footer-info">
-          <span>Dernière actualisation : <strong id="autorefresh-last">—</strong> · <strong id="autograb-last-count">—</strong> grabé(s)<span id="autorefresh-last-type" class="footer-info-type"></span></span>
-          <span id="autograb-next-refresh"></span>
-          <span id="autograb-error-msg"></span>
+          <span>Dernier grab : <strong id="autorefresh-last">—</strong> · <strong id="autograb-last-count">—</strong> grabé(s)<span id="autorefresh-last-type" class="footer-info-type"></span></span>
         </div>
         <div class="footer-actions">
           <span class="saved-msg" id="autograb-run-msg">—</span>
@@ -210,12 +228,9 @@
       <div class="rule-row">
         <div class="rule-meta">
           <div class="rule-name">Nettoyage automatique</div>
-          <div class="rule-desc">Supprime les torrents selon les règles ci-dessous</div>
+          <div class="rule-desc">Supprime les torrents selon les règles ci-dessous lors du cycle Timer</div>
         </div>
-        <div class="rule-input-wrap">
-          <input type="number" id="cleaner-interval" value="1" min="1" max="168">
-        </div>
-        <span class="rule-unit">h</span>
+        <div></div><div></div>
         <div class="rule-actions">
           <input type="checkbox" class="toggle" id="cleaner-enabled">
         </div>
@@ -223,8 +238,7 @@
       <div id="rules-cond"></div>
       <div class="card-footer">
         <div class="footer-info">
-          <span>Dernière exécution : <strong id="cleaner-last-run">—</strong> · <strong id="cleaner-last-count">—</strong> supprimé(s)<span id="cleaner-last-run-type" class="footer-info-type"></span></span>
-          <span id="cleaner-next-run"></span>
+          <span>Dernier clean : <strong id="cleaner-last-run">—</strong> · <strong id="cleaner-last-count">—</strong> supprimé(s)<span id="cleaner-last-run-type" class="footer-info-type"></span></span>
         </div>
         <div class="footer-actions">
           <span class="saved-msg" id="cleaner-run-msg"></span>
