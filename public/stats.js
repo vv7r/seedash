@@ -1,3 +1,4 @@
+'use strict';
 // === CONNEXIONS LED & STATS GLOBALES ===
 // Dépend de : utils.js (fmtSpeed)
 // Appelé depuis : app.js (startPolling, checkAuth), actifs.js (loadActifs), top.js (triggerAutoGrab, grabOne)
@@ -18,7 +19,7 @@ async function loadConnections() {
     if (ledState[id] !== 'ok') setLed(id, 'checking');
   });
   try {
-    const d = await fetch(BASE + '/api/connections', { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/connections', { credentials: 'include' }).then(r => r.json());
     setLed('led-c411',    d.c411        === 'ok' ? 'ok' : 'err');
     setLed('led-qbit',    d.qbittorrent === 'ok' ? 'ok' : 'err');
     setLed('led-ultracc', d.ultracc     === 'ok' ? 'ok' : 'err');
@@ -46,7 +47,7 @@ function updateQbitStats(torrents) {
  *  (disque, trafic réseau, et stats qBittorrent si l'onglet actifs n'est pas actif). */
 async function loadStats() {
   try {
-    const r = await fetch(BASE + '/api/stats', { credentials: 'include' });
+    const r = await fetchT(BASE + '/api/stats', { credentials: 'include' });
     if (r.status === 401) { showLogin('Session expirée'); return; }
     const d = await r.json();
     if (d.c411_base) c411Base = d.c411_base;

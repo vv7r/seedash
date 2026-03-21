@@ -805,7 +805,9 @@ app.post(`${cfg.baseurl}/api/login`, async (req, res) => {
     return res.status(401).json({ error: 'Identifiants incorrects' });
   }
   auth.resetLoginAttempts(ip);
-  const token = jwt.sign({ username }, auth.getJwtSecret(), { expiresIn: cfg.auth.token_expiry || '24h', algorithm: 'HS256' });
+  const ALLOWED_EXPIRIES = ['1h','2h','4h','8h','12h','24h','48h','72h','168h'];
+  const expiry = ALLOWED_EXPIRIES.includes(cfg.auth.token_expiry) ? cfg.auth.token_expiry : '24h';
+  const token = jwt.sign({ username }, auth.getJwtSecret(), { expiresIn: expiry, algorithm: 'HS256' });
   res.cookie('seedash_token', token, {
     httpOnly: true,
     secure:   req.secure || req.headers['x-forwarded-proto'] === 'https',

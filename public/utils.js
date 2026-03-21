@@ -1,3 +1,4 @@
+'use strict';
 // === CONFIG ===
 /** Préfixe de toutes les routes API — dérivé du premier segment du chemin URL courant.
  *  Fonctionne quel que soit le baseurl configuré (ex: /seedash, /seedash-test, /monapp). */
@@ -5,6 +6,13 @@ const BASE = '/' + (window.location.pathname.split('/').filter(Boolean)[0] || 's
 let c411Base = 'https://c411.org';
 
 // === UTILS ===
+
+/** fetch() avec timeout via AbortController. Délai par défaut : 10s. */
+function fetchT(url, opts = {}, ms = 10000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
 
 /** Échappe les caractères HTML spéciaux (&, <, >, ", ') pour sécuriser l'interpolation dans innerHTML. */
 function he(s) {

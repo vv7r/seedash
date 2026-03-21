@@ -1,3 +1,4 @@
+'use strict';
 // === RÈGLES, CLEANER, HISTORIQUE, SECRETS ===
 
 // État local règles et historique
@@ -34,7 +35,7 @@ const RULE_DEFS = [
 /** Charge la configuration des règles depuis /api/rules, fusionne avec RULE_DEFS. */
 async function loadRules() {
   try {
-    const d = await fetch(BASE + '/api/rules', { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/rules', { credentials: 'include' }).then(r => r.json());
     const on = d._on || {};
     rules = RULE_DEFS.map((def, i) => ({
       id: i,
@@ -116,7 +117,7 @@ async function saveRules() {
   if (fixes.length) { renderRules(); toast(fixes.join(' — '), 'error'); }
   const payload = { _on: {} };
   rules.forEach(r => { payload[r.key] = r.val * (r.displayScale || 1); if (!r.noToggle) payload._on[r.key] = r.on; });
-  const r = await fetch(BASE + '/api/rules', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify(payload) });
+  const r = await fetchT(BASE + '/api/rules', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify(payload) });
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
     throw new Error(body.error || `rules ${r.status}`);
@@ -161,7 +162,7 @@ function applyTimerCountdown(intervalHours, enabled) {
 /** Charge l'état du cleaner depuis /api/cleaner/status et peuple le formulaire. */
 async function loadCleanerStatus() {
   try {
-    const d = await fetch(BASE + '/api/cleaner/status', { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/cleaner/status', { credentials: 'include' }).then(r => r.json());
     cleanerEnabled = !!d.enabled;
     document.getElementById('cleaner-enabled').checked        = !!d.enabled;
     document.getElementById('cleaner-last-run').textContent   = fmtDate(d.last_run);
@@ -173,7 +174,7 @@ async function loadCleanerStatus() {
 /** Sauvegarde le toggle cleaner via POST /api/cleaner/schedule. */
 async function saveCleanerSchedule() {
   const enabled = document.getElementById('cleaner-enabled').checked;
-  const r = await fetch(BASE + '/api/cleaner/schedule', {
+  const r = await fetchT(BASE + '/api/cleaner/schedule', {
     method: 'POST',
     headers: authHeaders(),
     credentials: 'include',
@@ -186,7 +187,7 @@ async function saveCleanerSchedule() {
 /** Charge la config Timer depuis /api/timer/status et peuple le formulaire. */
 async function loadTimerStatus() {
   try {
-    const d = await fetch(BASE + '/api/timer/status', { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/timer/status', { credentials: 'include' }).then(r => r.json());
     document.getElementById('timer-enabled').checked   = !!d.enabled;
     document.getElementById('timer-interval').value    = d.interval_hours || 1;
     document.getElementById('timer-interval').disabled = !d.enabled;
@@ -199,7 +200,7 @@ async function loadTimerStatus() {
 async function saveTimerConfig() {
   const interval_hours = parseInt(document.getElementById('timer-interval').value) || 1;
   const enabled        = document.getElementById('timer-enabled').checked;
-  const r = await fetch(BASE + '/api/timer/config', {
+  const r = await fetchT(BASE + '/api/timer/config', {
     method: 'POST',
     headers: authHeaders(),
     credentials: 'include',
@@ -217,7 +218,7 @@ async function runCleanerNow() {
   btn.disabled = true;
   btn.textContent = 'En cours...';
   try {
-    const r = await fetch(BASE + '/api/cleaner/run', { method: 'POST', credentials: 'include' });
+    const r = await fetchT(BASE + '/api/cleaner/run', { method: 'POST', credentials: 'include' });
     const d = await r.json();
     const n = d.deleted ?? 0;
     showMsg('cleaner-run-msg', n === 0 ? 'Aucun torrent supprimé' : `${n} torrent${n > 1 ? 's' : ''} supprimé${n > 1 ? 's' : ''}`);
@@ -293,7 +294,7 @@ function renderHistory() {
       ? `<div class="hist-names">${e.names.map(n => {
           const label = he(typeof n === 'string' ? n : n.name);
           const url   = typeof n === 'object' && n.url ? n.url : null;
-          return `<div>${url ? `<a href="${url}" target="_blank" rel="noopener" class="td-link">${label}</a>` : label}</div>`;
+          return `<div>${url ? `<a href="${he(url)}" target="_blank" rel="noopener" class="td-link">${label}</a>` : label}</div>`;
         }).join('')}</div>` : '';
     const srcBadge = `<span class="badge badge-gray">${he(e.source)}</span>`;
     const dateB64  = btoa(e.date);
@@ -313,7 +314,7 @@ function renderHistory() {
 async function deleteHistEntry(dateB64) {
   const date = atob(dateB64);
   try {
-    const r = await fetch(BASE + '/api/history', { method: 'DELETE', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ date }) });
+    const r = await fetchT(BASE + '/api/history', { method: 'DELETE', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ date }) });
     if (!r.ok) throw new Error();
     histData = histData.filter(e => e.date !== date);
     renderHistory();
@@ -325,7 +326,7 @@ async function loadHistory() {
   const el = document.getElementById('history-content');
   if (!el) return;
   try {
-    histData = await fetch(BASE + '/api/history', { credentials: 'include' }).then(r => r.json());
+    histData = await fetchT(BASE + '/api/history', { credentials: 'include' }).then(r => r.json());
     renderHistory();
   } catch (e) {
     el.innerHTML = '<div class="hist-error">Erreur chargement historique</div>';
@@ -353,7 +354,7 @@ function autoSave() {
 /** Charge les secrets/URLs depuis /api/config/secrets et peuple les champs du formulaire. */
 async function loadSecrets() {
   try {
-    const d = await fetch(BASE + '/api/config/secrets', { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/config/secrets', { credentials: 'include' }).then(r => r.json());
     document.getElementById('sec-c411-url').value      = d.c411_url      || '';
     document.getElementById('sec-qbit-url').value      = d.qbit_url      || '';
     document.getElementById('sec-qbit-username').value = d.qbit_username || '';
@@ -376,7 +377,7 @@ async function testConnection(service, ledId) {
   setLed(ledId, 'checking');
   const label = SERVICE_LABELS[service] || service;
   try {
-    const d = await fetch(BASE + '/api/connections', { credentials: 'include' }).then(r => r.json());
+    const d = await fetchT(BASE + '/api/connections', { credentials: 'include' }).then(r => r.json());
     const ok = d[service] === 'ok';
     setLed(ledId, ok ? 'ok' : 'err');
     toast(ok ? `${label} — Connexion OK` : `${label} — ${d[service] || 'Échec'}`, ok ? 'success' : 'error');
@@ -399,7 +400,7 @@ async function saveSecrets() {
   if (v('sec-ultracc-token')) body.ultracc_token  = v('sec-ultracc-token');
   if (!Object.keys(body).length) { showMsg('secrets-msg', 'Aucune modification'); return; }
   try {
-    const r = await fetch(BASE + '/api/config/secrets', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify(body) });
+    const r = await fetchT(BASE + '/api/config/secrets', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify(body) });
     const d = await r.json();
     if (!r.ok) { showMsg('secrets-msg', d.error || 'Erreur serveur'); return; }
     document.getElementById('sec-c411-apikey').value   = '';
@@ -419,7 +420,7 @@ async function changePassword() {
   if (new_password !== confirm) { msg.style.color = 'var(--red-text)'; msg.textContent = 'Les mots de passe ne correspondent pas'; msg.style.opacity = 1; return; }
   if (new_password.length < 8) { msg.style.color = 'var(--red-text)'; msg.textContent = 'Minimum 8 caractères'; msg.style.opacity = 1; return; }
   try {
-    const r = await fetch(BASE + '/api/change-password', {
+    const r = await fetchT(BASE + '/api/change-password', {
       method: 'POST',
       headers: authHeaders(),
       credentials: 'include',

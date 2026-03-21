@@ -458,7 +458,8 @@ seedash/
     ├── top-cache.json      — cache du dernier top leechers C411
     ├── namemap.json        — correspondance hash qBittorrent → nom C411
     ├── categorymap.json    — correspondance hash qBittorrent → catégorie C411
-    └── upload-history.json — courbe d'upload par torrent (points horodatés)
+    ├── upload-history.json — courbe d'upload par torrent (points horodatés)
+    └── cleaner.log         — journal du cleaner automatique (suppressions)
 ```
 
 ---
