@@ -2,7 +2,6 @@ node_modules/
 logs/
 *.log
 .claude/
-ecosystem.config.js
 connections.json
 .env
 .env.local

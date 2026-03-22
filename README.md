@@ -178,7 +178,7 @@ npm test
 
 Le runner est **node:test** (intégré à Node.js, aucune dépendance externe).
 
-### `tests/cleaner-logic.test.js` — 23 tests
+### `tests/cleaner-logic.test.js` — 27 tests
 
 Teste `shouldDelete(torrent, rules, rulesOn, uploadHistory, now)` de `lib/cleaner.js`.
 
@@ -189,7 +189,7 @@ Ce que les tests vérifient :
 - La condition `upload_min_mb` exige que l'historique couvre toute la fenêtre (torrent trop récent → non éligible)
 - Les toggles `rules_on` activent/désactivent correctement chaque règle individuellement
 
-### `tests/grab-logic.test.js` — 21 tests
+### `tests/grab-logic.test.js` — 36 tests
 
 Teste `filterCandidates(items, existingHashes, rules, rulesOn, canGrab)` de `lib/grab.js`.
 
@@ -212,7 +212,6 @@ Ce que les tests vérifient :
   "baseurl": "/seedash",
   "auto_grab": {
     "enabled": false,
-    "interval_minutes": 60,
     "last_run": "2024-01-01T00:00:00.000Z",
     "last_grab_count": 0,
     "rules": {
@@ -220,19 +219,20 @@ Ce que les tests vérifient :
       "size_max_gb": 25,
       "active_max": 15,
       "min_leechers": 10,
-      "min_seeders": 2
+      "min_seeders": 2,
+      "network_max_pct": 90
     },
     "rules_on": {
       "grab_limit_per_day": true,
       "size_max_gb": true,
       "active_max": true,
       "min_leechers": true,
-      "min_seeders": true
+      "min_seeders": true,
+      "network_max_pct": true
     }
   },
   "auto_clean": {
     "enabled": false,
-    "interval_hours": 6,
     "last_run": null,
     "last_deleted_count": 0,
     "last_run_type": null,
@@ -251,6 +251,11 @@ Ce que les tests vérifient :
       "age_max_hours": false,
       "upload_min_mb": true
     }
+  },
+  "timer": {
+    "enabled": true,
+    "interval_hours": 1,
+    "last_run": "2024-01-01T00:00:00.000Z"
   }
 }
 ```
@@ -264,6 +269,7 @@ Ce que les tests vérifient :
 | `active_max` | Nombre max de torrents actifs dans qBittorrent |
 | `min_leechers` | Nombre minimum de leechers requis |
 | `min_seeders` | Nombre minimum de seeders requis |
+| `network_max_pct` | Trafic réseau mensuel maximum (%) — bloque le grab au-delà |
 
 **Règles auto_clean :**
 
@@ -316,7 +322,7 @@ Toutes les routes (sauf `/api/login` et `/api/setup`) nécessitent un header `Au
 | Méthode | Route | Description |
 |---------|-------|-------------|
 | `GET` | `/api/setup/status` | `{ setupComplete: bool }` — détecte le premier démarrage |
-| `POST` | `/api/setup` | `{username, password}` → crée le compte + génère `ecosystem.config.js` |
+| `POST` | `/api/setup` | `{username, password}` → crée le compte |
 | `POST` | `/api/login` | `{username, password}` → cookie JWT httpOnly |
 | `POST` | `/api/logout` | Invalide le cookie de session |
 | `POST` | `/api/change-password` | `{current_password, new_password}` → change le mot de passe |
@@ -350,13 +356,6 @@ Paramètres `GET /api/top-leechers` :
 | `POST` | `/api/grab` | Ajoute un torrent `{url, name, infohash}` (magnet → qBittorrent) |
 | `DELETE` | `/api/torrents/:hash` | Supprime un torrent et ses fichiers |
 | `GET` | `/api/upload-history/:hash` | Historique d'upload (points de données) pour un torrent |
-
-### Torrents grabbés
-
-| Méthode | Route | Description |
-|---------|-------|-------------|
-| `GET` | `/api/grabbed-torrents` | Liste des torrents grabbés via SeeDash (namemap) |
-| `DELETE` | `/api/grabbed-torrents` | `{hash}` — retire un torrent du namemap |
 
 ### Règles de configuration
 
@@ -393,17 +392,22 @@ Format retourné par `GET /api/rules` :
 |---------|-------|-------------|
 | `GET` | `/api/cleaner/status` | Statut : activé, dernier run, prochain run estimé |
 | `POST` | `/api/cleaner/run` | Déclenche un nettoyage immédiat |
-| `POST` | `/api/cleaner/schedule` | `{interval_hours, enabled}` — configure le timer |
+| `POST` | `/api/cleaner/schedule` | `{enabled}` — active/désactive le nettoyage automatique |
 
 ### Auto grab
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| `GET` | `/api/auto-grab/status` | Statut : activé, dernier run, dernier count |
 | `POST` | `/api/auto-grab/run` | Déclenche un grab immédiat |
-| `POST` | `/api/auto-grab/config` | `{enabled, interval_minutes}` — configure le timer |
-| `GET` | `/api/auto-refresh` | Alias lecture `auto_grab` (compatibilité) |
-| `POST` | `/api/auto-refresh` | Alias écriture `auto_grab` (compatibilité) |
+| `GET` | `/api/auto-refresh` | Statut `auto_grab` : `grab_enabled`, `last_run`, `last_run_source`, `last_grab_count`, `top_cache_date` |
+| `POST` | `/api/auto-refresh` | `{enabled}` — active/désactive le grab automatique |
+
+### Timer
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| `GET` | `/api/timer/status` | Statut du timer : `enabled`, `interval_hours`, `last_run`, `next_at` |
+| `POST` | `/api/timer/config` | `{enabled, interval_hours}` — configure le timer de refresh automatique |
 
 ### Historique
 
@@ -425,17 +429,17 @@ Format retourné par `GET /api/rules` :
 
 ```
 seedash/
-├── server.js              — API Express, auth JWT, timers auto-grab, routes
+├── server.js              — API Express, auth JWT, timer combiné clean→grab, routes
 ├── crypto-config.js       — chiffrement/déchiffrement AES-256-GCM
-├── ecosystem.config.js    — config PM2 minimaliste (généré au premier démarrage, ne pas committer)
+├── ecosystem.config.js    — config PM2
 ├── config.json            — config générale : port, baseurl, auto_grab, auto_clean (versionné)
 ├── connections.json       — secrets chiffrés : auth, c411, qbittorrent, ultracc_api (ignoré git)
 ├── package.json
 ├── .gitignore
 ├── lib/
 │   ├── auth.js            — auth JWT, brute-force, middleware requireAuth
-│   ├── cleaner.js         — logique de nettoyage + timer setInterval
-│   ├── grab.js            — auto-grab (cycle, timer, filterCandidates)
+│   ├── cleaner.js         — logique de nettoyage, shouldDelete (fonction pure testable)
+│   ├── grab.js            — auto-grab, filterCandidates (fonction pure testable)
 │   ├── qbit.js            — client qBittorrent (login, request, session)
 │   ├── ultracc.js         — client Ultra.cc (stats, cache TTL 5 min)
 │   └── helpers.js         — helpers purs (getIn, setIn, maskSecret, isHttpUrl)
@@ -445,19 +449,20 @@ seedash/
 │   ├── theme-init.js      — restauration du thème sombre avant rendu (évite le flash)
 │   ├── utils.js           — helpers purs : he(), fmt*(), toast, CAT_NAMES, BASE
 │   ├── stats.js           — LEDs de connexion, loadStats, updateQbitStats
-│   ├── charts.js          — graphiques Chart.js (ratio, upload, modal)
+│   ├── charts.js          — courbe upload par torrent (canvas 2D), modal agrandissement
 │   ├── top.js             — top leechers, tri, sélection, auto-refresh
 │   ├── actifs.js          — torrents actifs, badge suppression, insertChartRow
 │   ├── rules.js           — règles, cleaner, historique, secrets
 │   └── app.js             — globals partagés, auth, tabs, event listeners, init
 ├── tests/
-│   ├── cleaner-logic.test.js — 23 tests shouldDelete (toutes branches logiques)
-│   └── grab-logic.test.js    — 21 tests filterCandidates (filtres, tri, limites)
+│   ├── cleaner-logic.test.js — 27 tests shouldDelete (toutes branches logiques)
+│   └── grab-logic.test.js    — 36 tests filterCandidates (filtres, tri, limites)
 └── logs/                  — créé automatiquement au démarrage
     ├── history.json        — historique grabs/suppressions (500 entrées max)
     ├── top-cache.json      — cache du dernier top leechers C411
     ├── namemap.json        — correspondance hash qBittorrent → nom C411
     ├── categorymap.json    — correspondance hash qBittorrent → catégorie C411
+    ├── torrent-list.json   — liste cumulative des torrents grabbés (créé au premier grab)
     ├── upload-history.json — courbe d'upload par torrent (points horodatés)
     └── auto.log            — journal des opérations automatiques (cleaner + grab)
 ```
@@ -467,7 +472,7 @@ seedash/
 ## Sécurité
 
 - **Premier démarrage** : page de setup obligatoire (username + password choisis librement), pas de mot de passe par défaut
-- **JWT** signé avec `jwt_secret` (64 octets, généré aléatoirement, stocké uniquement dans `connections.json`)
+- **JWT** signé avec `jwt_secret` (64 octets, généré aléatoirement, stocké uniquement dans `connections.json`) — cookie `maxAge` aligné dynamiquement sur `token_expiry` (`1h` à `168h`)
 - **Brute-force** : 5 tentatives de login max → blocage IP 15 minutes
 - **AES-256-GCM** : tous les secrets (API keys, mots de passe) chiffrés sur disque — clé dérivée du JWT secret via SHA-256
 - **`connections.json` chmod 600** — toujours écrit avec permissions restrictives (lecture propriétaire uniquement)

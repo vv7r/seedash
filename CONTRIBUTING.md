@@ -124,7 +124,7 @@ Exemples :
 **Structure**
 - La logique métier testable doit être isolée dans `lib/` sous forme de fonctions pures exportées
 - Les fonctions pures (`shouldDelete`, `filterCandidates`) ne doivent pas effectuer d'I/O
-- `config.json` est versionné ; `connections.json` et `ecosystem.config.js` sont ignorés par git
+- `connections.json` est ignoré par git (secrets chiffrés)
 
 ---
 

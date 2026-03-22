@@ -141,7 +141,6 @@ let topItems = [];
 const torrentDataMap = new Map();
 const openChartHashes = new Set();
 let rules = [];
-let rulesOrig = [];
 
 /** Retourne la valeur numérique d'une règle si elle est active, null sinon.
  *  Utilisé pour filtrer les items du top avant affichage.
@@ -288,16 +287,10 @@ document.getElementById('cleaner-enabled').addEventListener('change', () => { au
 document.getElementById('cleaner-run-btn').addEventListener('click', runCleanerNow);
 
 // Timer : changement d'intervalle → sauvegarde différée
-document.getElementById('timer-interval').addEventListener('change', () => {
-  localStorage.removeItem('timerNextAt');
-  localStorage.removeItem('autoRefreshNextAt');
-  autoSave();
-});
+document.getElementById('timer-interval').addEventListener('change', () => { autoSave(); });
 // Timer : activation/désactivation → active/désactive le champ intervalle
 document.getElementById('timer-enabled').addEventListener('change', (e) => {
   document.getElementById('timer-interval').disabled = !e.target.checked;
-  localStorage.removeItem('timerNextAt');
-  localStorage.removeItem('autoRefreshNextAt');
   autoSave();
 });
 
@@ -424,6 +417,9 @@ function startPolling() {
   setInterval(loadConnections, 30000);
   setInterval(loadStats, 5000);
   setInterval(() => loadAutoRefreshConfig(false), 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') loadStats();
+  });
 }
 
 // === INIT ===
