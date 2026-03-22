@@ -73,10 +73,9 @@ function renderActifsHeaders() {
   const tr = document.querySelector('#sec-actifs thead tr');
   if (!tr) return;
   tr.innerHTML = cols.map(c => {
-    const cls = c.cls ? ` class="${c.cls}"` : '';
-    if (!c.key) return `<th${cls}>${c.label}</th>`;
-    const arrow = actifsSortKey === c.key ? (actifsSortDir === 1 ? ' ▲' : ' ▼') : '';
-    return `<th${cls} data-action="sort-actifs" data-key="${c.key}">${c.label}${arrow}</th>`;
+    if (!c.key) return `<th${c.cls ? ` class="${c.cls}"` : ''}>${c.label}</th>`;
+    const sortCls = actifsSortKey === c.key ? (actifsSortDir === 1 ? ' sort-asc' : ' sort-desc') : '';
+    return `<th class="sortable${c.cls ? ' ' + c.cls : ''}${sortCls}" data-action="sort-actifs" data-key="${c.key}">${c.label}</th>`;
   }).join('');
 }
 

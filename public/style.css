@@ -29,6 +29,25 @@
   /* Rayons de coins réutilisés dans toute l'interface */
   --radius: 8px;
   --radius-lg: 12px;
+  /* Canvas chart */
+  --chart-bg: #faf9f6;
+  --chart-text: #777;
+  --chart-grid: #ddddd8;
+  --chart-line: #1D9E75;
+  --chart-fill: rgba(29,158,117,0.12);
+  --chart-grid-v: rgba(0,0,0,0.07);
+  --chart-hover-line: rgba(0,0,0,0.18);
+  --chart-hover-bg: rgba(255,255,255,0.92);
+  --chart-hover-border: rgba(0,0,0,0.12);
+  --chart-hover-text: #1c1c1f;
+  /* Brush */
+  --brush-handle: rgba(255,255,255,0.7);
+  --brush-grip: #444;
+  --brush-dim: rgba(0,0,0,0.15);
+  --brush-border: rgba(0,0,0,0.25);
+  --brush-line: rgba(29,158,117,0.5);
+  --brush-fill: rgba(29,158,117,0.08);
+
 }
 /* Surcharge des variables pour le thème sombre — le reste du CSS ne change pas */
 [data-theme="dark"] {
@@ -50,6 +69,23 @@
   --blue-text: #60b0f0;
   --gray-bg: #2a2a2e;
   --gray-text: #9090a0;
+  /* Canvas chart */
+  --chart-bg: #1c1c1f;
+  --chart-text: #999;
+  --chart-grid: #2a2a2d;
+  --chart-fill: rgba(29,158,117,0.2);
+  --chart-grid-v: rgba(255,255,255,0.07);
+  --chart-hover-line: rgba(255,255,255,0.25);
+  --chart-hover-bg: rgba(40,40,44,0.92);
+  --chart-hover-border: rgba(255,255,255,0.12);
+  --chart-hover-text: #e5e5e7;
+  /* Brush */
+  --brush-handle: rgba(0,0,0,0.5);
+  --brush-grip: #ccc;
+  --brush-dim: rgba(0,0,0,0.5);
+  --brush-border: rgba(255,255,255,0.3);
+  --brush-line: rgba(29,158,117,0.6);
+  --brush-fill: rgba(29,158,117,0.15);
 }
 
 /* === BODY & LAYOUT === */
@@ -145,11 +181,9 @@ input[type=number] { -moz-appearance: textfield; }
 .chart-modal-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
 /* flex: 1 + overflow: hidden + text-overflow pour tronquer les noms longs dans l'en-tête */
 .chart-modal-torrent-name { flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.chart-range-btns { display: flex; gap: 4px; flex-shrink: 0; }
-.btn-range { font-size: 11px; padding: 3px 9px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--text2); cursor: pointer; }
-.btn-range.active { background: var(--bg2); color: var(--text); border-color: var(--border2); font-weight: 500; }
 .chart-modal-canvas-wrap { width: 100%; overflow: hidden; }
 #chart-modal-canvas { display: block; width: 100%; }
+#chart-modal-brush { display: block; width: 100%; height: 50px; margin-top: 4px; }
 
 /* === TABLES === */
 /* border-collapse: collapse supprime l'espace entre les cellules pour un rendu unifié */
@@ -184,6 +218,9 @@ tr:hover td { background: var(--bg-hover); }
 .hist-table td.col-hist-del  { width:1px; white-space:nowrap; text-align:center; vertical-align:middle; }
 .hist-names { font-size:11px; color:var(--text2); margin-top:3px; }
 .hist-names > div { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.col-hist-chart { text-align:center; vertical-align:middle; width:1px; padding:0; }
+.btn-hist-chart { background:none; border:none; cursor:pointer; padding:0; opacity:0.5; transition:opacity 0.15s; display:flex; align-items:center; justify-content:center; color:var(--text2); }
+.btn-hist-chart:hover { opacity:1; }
 .col-hist-date { white-space: nowrap; }
 .hist-date-day, .hist-date-time { display: block; }
 .hist-date-time { font-size: 11px; color: var(--text2); }
@@ -210,11 +247,6 @@ th.sortable:hover { background: var(--bg2); }
 th.sortable::after { content: ' ↕'; opacity: 0.3; font-size: 10px; }
 th.sort-asc::after  { content: ' ↑'; opacity: 1; color: var(--accent); }
 th.sort-desc::after { content: ' ↓'; opacity: 1; color: var(--accent); }
-/* Sélecteurs alternatifs pour les colonnes gérées via data-action et data-sort (délégation JS) */
-th[data-action="sort-actifs"] { cursor: pointer; user-select: none; }
-th[data-action="sort-actifs"]:hover { background: var(--bg2); }
-th[data-sort] { cursor: pointer; user-select: none; }
-th[data-sort]:hover { background: var(--bg2); }
 
 /* === TOGGLE === */
 /* Checkbox native masquée et remplacée visuellement par un switch personnalisé */
@@ -291,11 +323,11 @@ input[type=checkbox]:not(.toggle) { accent-color: #1D9E75; width: 14px; height: 
 .hist-error { padding: 16px; color: var(--red-text); font-size: 13px; }
 
 /* === ACTIFS === */
-.cell-seedtime { font-size: 12px; color: var(--text2); }
+td.cell-seedtime { font-size: 12px; color: var(--text2); }
 /* Passage en vert quand l'âge minimum est atteint (règle age_min_hours satisfaite) */
-.cell-seedtime.time-ok { color: var(--green); }
-.cell-dl { font-size: 12px; }
-.cell-up { font-size: 12px; }
+td.cell-seedtime.time-ok { color: var(--green); }
+td.cell-dl { font-size: 12px; }
+td.cell-up { font-size: 12px; }
 /* Trois états visuels pour le ratio : ok (vert), warn (ambre), low (rouge) */
 /* La classe d'état est posée sur la ligne <tr> ou la cellule parente par le JS */
 .ratio-state-ok   .cell-ratio-bar  { background: #1D9E75; }
@@ -326,6 +358,11 @@ body { padding-bottom: env(safe-area-inset-bottom, 0); }
   padding-left:  max(1rem, env(safe-area-inset-left, 0));
   padding-right: max(1rem, env(safe-area-inset-right, 0));
 }
+/* Footer GitHub */
+.app-footer { text-align:center; padding:2rem 0 0; }
+.footer-link { display:inline-flex; align-items:center; gap:6px; color:var(--text3); font-size:12px; text-decoration:none; opacity:0.6; transition:opacity 0.15s; }
+.footer-link:hover { opacity:1; }
+
 /* Le container se décale vers le haut pour ne pas être masqué par la barre d'accueil */
 .toast-container { bottom: calc(1.5rem + env(safe-area-inset-bottom, 0)); right: max(1.5rem, env(safe-area-inset-right, 0)); }
 .login-screen { padding-left: env(safe-area-inset-left, 0); padding-right: env(safe-area-inset-right, 0); }

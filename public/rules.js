@@ -265,9 +265,8 @@ function renderHistory() {
     { key: 'source', label: 'Source',   cls: 'col-hist-source' },
   ];
   const headers = cols.map(c => {
-    const arrow = histSortKey === c.key ? (histSortDir === 1 ? ' ▲' : ' ▼') : '';
-    const cls = c.cls ? ` class="${c.cls}"` : '';
-    return `<th${cls} data-sort="${c.key}">${c.label}${arrow}</th>`;
+    const sortCls = histSortKey === c.key ? (histSortDir === 1 ? ' sort-asc' : ' sort-desc') : '';
+    return `<th class="sortable${c.cls ? ' ' + c.cls : ''}${sortCls}" data-sort="${c.key}">${c.label}</th>`;
   }).join('');
 
   const sorted = sortHistData(histData);
@@ -286,17 +285,22 @@ function renderHistory() {
           return `<div>${url ? `<a href="${he(url)}" target="_blank" rel="noopener" class="td-link">${label}</a>` : label}</div>`;
         }).join('')}</div>` : '';
     const srcBadge = `<span class="badge badge-gray">${he(e.source)}</span>`;
+    const firstHash = e.names?.find(n => typeof n === 'object' && n.hash);
+    const chartBtn = firstHash
+      ? `<button class="btn-hist-chart" data-action="hist-chart" data-hash="${he(firstHash.hash)}" data-name="${he(firstHash.name || '')}" title="Voir le graphique"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="15" x2="2" y2="3"/><line x1="2" y1="15" x2="16" y2="15"/><polyline points="4,12 7,8 10,10 15,4"/><circle cx="15" cy="4" r="1.2"/></svg></button>`
+      : '';
     const dateB64  = btoa(e.date);
     return `<tr>
       <td class="col-hist-date">${fmtDateStack(e.date)}</td>
       <td class="col-hist-type">${badge}</td>
       <td class="col-hist-result">${result}${names}</td>
       <td class="col-hist-source">${srcBadge}</td>
+      <td class="col-hist-chart">${chartBtn}</td>
       <td class="col-hist-del"><button class="btn-del-x" data-action="del-hist" data-date="${dateB64}" title="Supprimer">✕</button></td>
     </tr>`;
   }).join('');
 
-  el.innerHTML = `<table class="hist-table"><thead><tr>${headers}<th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<table class="hist-table"><thead><tr>${headers}<th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 /** Supprime une entrée de l'historique via DELETE /api/history. */

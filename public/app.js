@@ -243,16 +243,13 @@ document.getElementById('btn-theme').addEventListener('click', toggleTheme);
 document.querySelectorAll('.btn-theme-screen').forEach(btn => btn.addEventListener('click', toggleTheme));
 document.getElementById('btn-logout').addEventListener('click', doLogout);
 
-// Modal graphique : fermeture en cliquant sur le fond, changement de plage temporelle, bouton ✕
+// Modal graphique : fermeture en cliquant sur le fond ou bouton ✕
+// Utilise mousedown+mouseup sur le même élément pour éviter de fermer lors d'un drag brush
+let chartModalMouseDownTarget = null;
+document.getElementById('chart-modal').addEventListener('mousedown', e => { chartModalMouseDownTarget = e.target; });
 document.getElementById('chart-modal').addEventListener('click', e => {
-  if (e.target === document.getElementById('chart-modal')) closeChartModal();
-  const rangeBtn = e.target.closest('.btn-range');
-  if (rangeBtn) {
-    chartModalRange = rangeBtn.dataset.range;
-    document.querySelectorAll('#chart-modal .btn-range').forEach(b => b.classList.toggle('active', b === rangeBtn));
-    renderModalChart();
-  }
-  if (e.target.id === 'chart-modal-close') closeChartModal();
+  if (e.target.id === 'chart-modal-close') { closeChartModal(); return; }
+  if (e.target === document.getElementById('chart-modal') && chartModalMouseDownTarget === e.target) closeChartModal();
 });
 // Touche Échap pour fermer la modal graphique depuis n'importe où
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeChartModal(); });
@@ -399,6 +396,8 @@ document.getElementById('sec-regles').addEventListener('input', e => {
 // === DÉLÉGATION — HISTORIQUE ===
 // Suppression d'une entrée (data-action="del-hist") et tri par en-tête (data-sort)
 document.getElementById('history-content').addEventListener('click', e => {
+  const chartBtn = e.target.closest('button[data-action="hist-chart"]');
+  if (chartBtn) { openChartModal(chartBtn.dataset.hash, chartBtn.dataset.name); return; }
   const del = e.target.closest('button[data-action="del-hist"]');
   if (del) { deleteHistEntry(del.dataset.date); return; }
   const th = e.target.closest('th[data-sort]');

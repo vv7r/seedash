@@ -6,8 +6,16 @@
 // État de la modal graphique
 let chartModalHash    = null;
 let chartModalPoints  = null;
-let chartModalRange   = 'all';
 let chartModalHoverAC = null;
+
+// État du brush (sélection temporelle)
+let brushStart = 0;   // ratio 0-1
+let brushEnd   = 1;   // ratio 0-1
+let brushDragMode = null; // 'left' | 'right' | 'pan' | null
+let brushDragStartX = 0;
+let brushDragStartBS = 0;
+let brushDragStartBE = 0;
+let brushCleanup = null;  // fonction de nettoyage des listeners
 
 /** Calcule un pas d'axe Y "propre" (1, 2 ou 5 × puissance de 10) donnant au plus 4 graduations.
  *  @param {number} maxVal - Valeur maximale à représenter sur l'axe */
@@ -70,12 +78,13 @@ function drawChartOnCanvas(canvas, points, H, windowLabel = null) {
   const yStep   = niceTick(maxRate);
   const yMax    = Math.ceil(maxRate / yStep) * yStep;
 
-  const isDark    = document.documentElement.dataset.theme === 'dark';
-  const bg2       = isDark ? '#1c1c1f' : '#faf9f6';
-  const textColor = isDark ? '#999'    : '#777';
-  const gridColor = isDark ? '#2a2a2d' : '#ddddd8';
-  const fillColor = isDark ? 'rgba(29,158,117,0.2)' : 'rgba(29,158,117,0.12)';
-  const lineColor = '#1D9E75';
+  const cs        = getComputedStyle(document.documentElement);
+  const v         = n => cs.getPropertyValue(n).trim();
+  const bg2       = v('--chart-bg');
+  const textColor = v('--chart-text');
+  const gridColor = v('--chart-grid');
+  const fillColor = v('--chart-fill');
+  const lineColor = v('--chart-line');
 
   ctx.fillStyle = bg2;
   ctx.fillRect(0, 0, W, H);
@@ -104,7 +113,7 @@ function drawChartOnCanvas(canvas, points, H, windowLabel = null) {
   for (let ts = firstTickTs; ts <= tMax; ts += tickIntervalMin * 60) {
     const x  = PAD.left + ((ts - tMin) / (tMax - tMin)) * CW;
     const dd = new Date(ts * 1000);
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    ctx.strokeStyle = v('--chart-grid-v');
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + CH); ctx.stroke();
     const lbl = tickIntervalMin >= 1440
@@ -137,13 +146,17 @@ function drawChartOnCanvas(canvas, points, H, windowLabel = null) {
   ctx.fillText(`${totalStr} uploadés sur ${windowLabel || fmtWindow(winMins)}`, PAD.left + CW, PAD.top - 6);
 
   const snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  return { snapshot, ctx, PAD, CW, CH, rates, times, yMax, W, H, isDark, lineColor };
+  const hoverLine   = v('--chart-hover-line');
+  const hoverBg     = v('--chart-hover-bg');
+  const hoverBorder = v('--chart-hover-border');
+  const hoverText   = v('--chart-hover-text');
+  return { snapshot, ctx, PAD, CW, CH, rates, times, yMax, W, H, lineColor, bg2, hoverLine, hoverBg, hoverBorder, hoverText };
 }
 
 /** Attache les gestionnaires mousemove/mouseleave pour afficher un tooltip au survol.
  *  Utilise un AbortSignal pour pouvoir détacher proprement les handlers lors d'un re-rendu. */
 function attachChartHover(canvas, state, signal) {
-  const { snapshot, ctx, PAD, CW, CH, rates, times, yMax, W, isDark, lineColor } = state;
+  const { snapshot, ctx, PAD, CW, CH, rates, times, yMax, W, lineColor, bg2, hoverLine, hoverBg, hoverBorder, hoverText } = state;
   function drawHover(mouseX) {
     const relX = mouseX - PAD.left;
     if (relX < 0 || relX > CW) return;
@@ -152,27 +165,28 @@ function attachChartHover(canvas, state, signal) {
     const val = rates[idx];
     const py  = PAD.top + CH - (val / yMax) * CH;
     const dd  = new Date(times[idx] * 1000);
-    const timeStr = String(dd.getHours()).padStart(2,'0') + ':' + String(dd.getMinutes()).padStart(2,'0');
+    const timeStr = String(dd.getDate()).padStart(2,'0') + '/' + String(dd.getMonth()+1).padStart(2,'0') + ' ' + String(dd.getHours()).padStart(2,'0') + ':' + String(dd.getMinutes()).padStart(2,'0');
     const valStr  = val >= 1000 ? (val/1000).toFixed(2)+' GB' : val.toFixed(1)+' MB';
     ctx.putImageData(snapshot, 0, 0);
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)';
+    ctx.strokeStyle = hoverLine;
     ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
     ctx.beginPath(); ctx.moveTo(px, PAD.top); ctx.lineTo(px, PAD.top + CH); ctx.stroke();
     ctx.setLineDash([]);
     ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2);
     ctx.fillStyle = lineColor; ctx.fill();
-    ctx.strokeStyle = isDark ? '#1c1c1f' : '#faf9f6'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = bg2; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.font = '10px system-ui,sans-serif';
-    const label = `${timeStr}  ${valStr}`;
-    const tW = ctx.measureText(label).width + 12, tH = 18;
+    const tW = Math.max(ctx.measureText(timeStr).width, ctx.measureText(valStr).width) + 12;
+    const tH = 32;
     let tx = px + 8;
     if (tx + tW > W - 4) tx = px - tW - 8;
     const ty = Math.max(PAD.top, py - tH / 2 - 1);
-    ctx.fillStyle = isDark ? 'rgba(40,40,44,0.92)' : 'rgba(255,255,255,0.92)';
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
+    ctx.fillStyle = hoverBg;
+    ctx.strokeStyle = hoverBorder;
     ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(tx, ty, tW, tH, 4); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = isDark ? '#e5e5e7' : '#1c1c1f'; ctx.textAlign = 'left';
-    ctx.fillText(label, tx + 6, ty + 12);
+    ctx.fillStyle = hoverText; ctx.textAlign = 'left';
+    ctx.fillText(timeStr, tx + 6, ty + 12);
+    ctx.fillText(valStr, tx + 6, ty + 25);
   }
   canvas.addEventListener('mousemove', e => {
     drawHover(e.clientX - canvas.getBoundingClientRect().left);
@@ -205,46 +219,237 @@ async function renderUploadChart(hash, canvas) {
   }
 }
 
-/** Filtre les points d'historique selon la plage temporelle sélectionnée dans la modal. */
-function filterByRange(points, range) {
-  if (range === 'all' || !points.length) return points;
-  const secs = { '1h': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 };
-  const cutoff = points[points.length-1][0] - (secs[range] || 0);
-  return points.filter(([t]) => t >= cutoff);
+/** Slice les points selon brushStart/brushEnd (ratios 0-1 sur l'index). */
+function sliceByBrush(points) {
+  if (!points.length) return points;
+  const s = Math.floor(brushStart * (points.length - 1));
+  const e = Math.ceil(brushEnd * (points.length - 1));
+  return points.slice(s, e + 1);
 }
 
-/** Re-dessine le graphique de la modal avec la plage temporelle courante (chartModalRange). */
+/** Re-dessine le graphique principal de la modal avec la sélection brush courante. */
 function renderModalChart() {
   if (!chartModalPoints || chartModalPoints.length < 2) return;
-  const filtered = filterByRange(chartModalPoints, chartModalRange);
-  if (filtered.length < 2) return;
+  const sliced = sliceByBrush(chartModalPoints);
+  if (sliced.length < 2) return;
   if (chartModalHoverAC) { chartModalHoverAC.abort(); }
   chartModalHoverAC = new AbortController();
   const canvas = document.getElementById('chart-modal-canvas');
-  const rangeLabels = { '1h':'1h', '6h':'6h', '24h':'24h', '7d':'7j', '30d':'30j' };
-  const state  = drawChartOnCanvas(canvas, downsamplePoints(filtered, 1200), 360, rangeLabels[chartModalRange] || null);
+  const state  = drawChartOnCanvas(canvas, downsamplePoints(sliced, 1200), 360);
   attachChartHover(canvas, state, chartModalHoverAC.signal);
+  drawBrush();
+}
+
+/** Dessine la mini-courbe d'overview avec la zone de sélection brush. */
+function drawBrush() {
+  const canvas = document.getElementById('chart-modal-brush');
+  if (!canvas || !chartModalPoints || chartModalPoints.length < 2) return;
+  const pts = downsamplePoints(chartModalPoints, 800);
+  const base  = pts[0][1];
+  const rates = pts.map(([, u]) => Math.max(0, (u - base) / 1e6));
+  const maxR  = Math.max(...rates, 0.1);
+
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.parentElement.clientWidth || 600;
+  const H   = 50;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cs     = getComputedStyle(document.documentElement);
+  const bv     = n => cs.getPropertyValue(n).trim();
+  const bg     = bv('--chart-bg');
+  const dimBg  = bv('--brush-dim');
+  const line   = bv('--brush-line');
+  const fill   = bv('--brush-fill');
+  const handle = bv('--brush-handle');
+  const selBorder = bv('--brush-border');
+
+  const PAD = 4;
+  const CW = W;
+  const CH = H - PAD * 2;
+
+  // Background
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Mini courbe (area + line)
+  ctx.beginPath();
+  rates.forEach((v, i) => {
+    const x = (i / Math.max(rates.length - 1, 1)) * CW;
+    const y = PAD + CH - (v / maxR) * CH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(CW, PAD + CH);
+  ctx.lineTo(0, PAD + CH);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  ctx.beginPath();
+  rates.forEach((v, i) => {
+    const x = (i / Math.max(rates.length - 1, 1)) * CW;
+    const y = PAD + CH - (v / maxR) * CH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Overlay sombre sur les zones non sélectionnées
+  const lx = brushStart * CW;
+  const rx = brushEnd * CW;
+  ctx.fillStyle = dimBg;
+  if (lx > 0) ctx.fillRect(0, 0, lx, H);
+  if (rx < CW) ctx.fillRect(rx, 0, CW - rx, H);
+
+  // Bordures de la sélection
+  ctx.strokeStyle = selBorder;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(lx, 0, rx - lx, H);
+
+  // Poignées (barres verticales)
+  ctx.fillStyle = handle;
+  const hw = 14;
+  ctx.fillRect(lx - hw / 2, 0, hw, H);
+  ctx.fillRect(rx - hw / 2, 0, hw, H);
+
+  // Grips (2 lignes espacées au centre des poignées)
+  const gripH = 16, gripY = (H - gripH) / 2;
+  ctx.fillStyle = bv('--brush-grip');
+  for (const gx of [lx, rx]) {
+    ctx.fillRect(gx - 2.5, gripY, 1, gripH);
+    ctx.fillRect(gx + 1.5, gripY, 1, gripH);
+  }
+}
+
+/** Attache les événements drag sur le brush canvas. */
+function attachBrushEvents() {
+  if (brushCleanup) { brushCleanup(); brushCleanup = null; }
+  const canvas = document.getElementById('chart-modal-brush');
+  if (!canvas) return;
+
+  const MIN_SPAN = 0.03; // minimum 3% de sélection
+
+  function getX(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }
+
+  function updateCursor(e) {
+    const x = getX(e);
+    const HANDLE = 0.01;
+    if (Math.abs(x - brushStart) < HANDLE || Math.abs(x - brushEnd) < HANDLE) {
+      canvas.style.cursor = 'ew-resize';
+    } else if (x > brushStart && x < brushEnd) {
+      canvas.style.cursor = brushDragMode ? 'grabbing' : 'grab';
+    } else {
+      canvas.style.cursor = 'crosshair';
+    }
+  }
+
+  function onDown(e) {
+    e.preventDefault();
+    const x = getX(e);
+    const HANDLE = 0.01;
+    if (Math.abs(x - brushStart) < HANDLE) brushDragMode = 'left';
+    else if (Math.abs(x - brushEnd) < HANDLE) brushDragMode = 'right';
+    else if (x > brushStart && x < brushEnd) brushDragMode = 'pan';
+    else {
+      const span = brushEnd - brushStart;
+      brushStart = Math.max(0, x - span / 2);
+      brushEnd = Math.min(1, brushStart + span);
+      if (brushEnd > 1) { brushEnd = 1; brushStart = Math.max(0, 1 - span); }
+      brushDragMode = 'pan';
+    }
+    brushDragStartX  = x;
+    brushDragStartBS = brushStart;
+    brushDragStartBE = brushEnd;
+    canvas.style.cursor = brushDragMode === 'pan' ? 'grabbing' : 'ew-resize';
+  }
+
+  function onMove(e) {
+    if (!brushDragMode) { updateCursor(e); return; }
+    e.preventDefault();
+    const x = getX(e);
+    const dx = x - brushDragStartX;
+
+    if (brushDragMode === 'left') {
+      brushStart = Math.max(0, Math.min(brushEnd - MIN_SPAN, brushDragStartBS + dx));
+    } else if (brushDragMode === 'right') {
+      brushEnd = Math.min(1, Math.max(brushStart + MIN_SPAN, brushDragStartBE + dx));
+    } else if (brushDragMode === 'pan') {
+      const span = brushDragStartBE - brushDragStartBS;
+      let ns = brushDragStartBS + dx;
+      let ne = brushDragStartBE + dx;
+      if (ns < 0) { ns = 0; ne = span; }
+      if (ne > 1) { ne = 1; ns = 1 - span; }
+      brushStart = ns;
+      brushEnd = ne;
+    }
+    drawBrush();
+    renderModalChart();
+  }
+
+  function onUp() {
+    brushDragMode = null;
+    canvas.style.cursor = 'grab';
+  }
+
+  function onReset(e) {
+    e.preventDefault();
+    brushStart = 0;
+    brushEnd = 1;
+    renderModalChart();
+  }
+
+  canvas.addEventListener('mousedown', onDown);
+  canvas.addEventListener('touchstart', onDown, { passive: false });
+  canvas.addEventListener('dblclick', onReset);
+  canvas.addEventListener('contextmenu', onReset);
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('mouseup', onUp);
+  document.addEventListener('touchend', onUp);
+  canvas.addEventListener('mousemove', updateCursor);
+
+  brushCleanup = () => {
+    canvas.removeEventListener('mousedown', onDown);
+    canvas.removeEventListener('touchstart', onDown);
+    canvas.removeEventListener('dblclick', onReset);
+    canvas.removeEventListener('contextmenu', onReset);
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchend', onUp);
+    canvas.removeEventListener('mousemove', updateCursor);
+  };
 }
 
 /** Ouvre la modal graphique plein écran pour un torrent donné.
- *  @param {string} hash - Hash SHA1 du torrent */
-async function openChartModal(hash) {
-  chartModalHash  = hash;
-  chartModalRange = 'all';
-  document.getElementById('chart-modal-title').textContent = torrentDataMap.get(hash) || hash;
-  document.querySelectorAll('#chart-modal .btn-range').forEach(b => {
-    b.classList.toggle('active', b.dataset.range === 'all');
-  });
+ *  @param {string} hash - Hash SHA1 du torrent
+ *  @param {string} [name] - Nom du torrent (optionnel, pour les torrents supprimés) */
+async function openChartModal(hash, name) {
+  chartModalHash = hash;
+  brushStart = 0;
+  brushEnd   = 1;
+  document.getElementById('chart-modal-title').textContent = name || torrentDataMap.get(hash) || hash;
   document.getElementById('chart-modal').classList.add('open');
   try {
     const d = await fetchT(BASE + '/api/upload-history/' + hash, { credentials: 'include' }).then(r => r.json());
     chartModalPoints = d.points || [];
   } catch { chartModalPoints = []; }
+  attachBrushEvents();
   renderModalChart();
 }
 
-/** Ferme la modal graphique et annule les handlers hover en cours. */
+/** Ferme la modal graphique et annule les handlers hover/brush en cours. */
 function closeChartModal() {
   document.getElementById('chart-modal').classList.remove('open');
   if (chartModalHoverAC) { chartModalHoverAC.abort(); chartModalHoverAC = null; }
+  if (brushCleanup) { brushCleanup(); brushCleanup = null; }
 }
