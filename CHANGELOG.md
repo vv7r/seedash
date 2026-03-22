@@ -17,7 +17,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 - **Persistance de l'historique d'upload** — les données de courbe d'upload sont conservées après suppression manuelle ou auto-clean (cap : 8640 points/hash ≈ 30 jours, 500 hashes max)
 - **Timeline brush** — sélection interactive de la plage temporelle sur les graphiques (remplace les boutons 1h/6h/24h/48h/7j/30j), drag des poignées, pan, double-clic/clic droit pour réinitialiser
 - **Graphique dans l'historique** — bouton SVG sur chaque entrée pour ouvrir la courbe d'upload d'un torrent supprimé
-- **Raison de suppression dans les logs** — auto-clean et auto-grab affichent la raison dans `auto.log` (ex : `ratio_max (≥2.0)`, `4.2 GB, 45L/3S`)
+- **Raison de suppression dans les logs** — auto-clean affiche la raison dans `auto.log` (ex : `ratio_max (≥2.0)`, `ratio≥1.0 + âge≥48h`)
+- **Infos enrichies dans les logs de grab** — taille, leechers et seeders affichés pour chaque torrent grabé (ex : `4.2 GB, 45L/3S`)
 - **Date dans l'infobulle des graphiques** — affiche `JJ/MM HH:MM` sur deux lignes au lieu de `HH:MM` seul
 - **Footer GitHub** — lien discret vers le dépôt en bas de l'application
 - **Variables CSS pour les graphiques** — 18 variables custom (chart + brush) dans `:root` et `[data-theme="dark"]`
