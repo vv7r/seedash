@@ -492,13 +492,4 @@ L'historique des versions est disponible dans le [Changelog](CHANGELOG.md).
 
 ## Licence
 
-[![CC BY-NC-SA 4.0](https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
-
-Ce projet est distribué sous licence **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)**.
-
-Vous êtes libre de partager et d'adapter ce projet, sous les conditions suivantes :
-- **Attribution** — vous devez créditer l'auteur et indiquer les modifications effectuées
-- **NonCommercial** — vous ne pouvez pas utiliser ce projet à des fins commerciales
-- **ShareAlike** — toute version modifiée doit être distribuée sous la même licence
-
-Texte complet : [creativecommons.org/licenses/by-nc-sa/4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+Ce projet est distribué sous licence [MIT](LICENSE).
