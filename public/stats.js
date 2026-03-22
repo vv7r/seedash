@@ -19,7 +19,9 @@ async function loadConnections() {
     if (ledState[id] !== 'ok') setLed(id, 'checking');
   });
   try {
-    const d = await fetchT(BASE + '/api/connections', { credentials: 'include' }).then(r => r.json());
+    const r = await fetchT(BASE + '/api/connections', { credentials: 'include' });
+    if (r.status === 401) { showLogin('Session expirée'); return; }
+    const d = await r.json();
     setLed('led-c411',    d.c411        === 'ok' ? 'ok' : 'err');
     setLed('led-qbit',    d.qbittorrent === 'ok' ? 'ok' : 'err');
     setLed('led-ultracc', d.ultracc     === 'ok' ? 'ok' : 'err');
@@ -66,5 +68,8 @@ async function loadStats() {
         : '—';
       document.getElementById('s-traffic-sub').textContent = `reset le ${reset}`;
     }
+    window.dispatchEvent(new CustomEvent('timer-status', {
+      detail: { enabled: !!d.timer_enabled, next_at: d.timer_next_at || null }
+    }));
   } catch (e) { /* silencieux */ }
 }

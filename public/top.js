@@ -4,17 +4,25 @@
 // État local du top leechers
 let topItemsCache = [];
 let topSort = { col: 'leechers', dir: -1 };
-let lastRefreshTime = localStorage.getItem('lastRefreshTime') || null;
-let lastRefreshType = localStorage.getItem('lastRefreshType') || null;
+let lastRefreshTime = null;
+let lastRefreshType = null;
 let topRetryInterval = null;
 
-// Timers auto-refresh
-let autoRefreshInterval     = null;
-let autoRefreshNextAt       = null;
-let autoRefreshCountdown    = null;
-let autoRefreshFirstTimeout = null;
-let autoRefreshTimerEnabled  = false;
-let autoRefreshIntervalHours = 1;
+// Timer auto-refresh
+let autoRefreshNextAt   = null;
+let autoRefreshTimeout  = null;
+let countdownStarted    = false;
+
+window.addEventListener('timer-status', e => {
+  autoRefreshNextAt = e.detail.enabled && e.detail.next_at
+    ? new Date(e.detail.next_at).getTime() : null;
+  updateTopNextRefresh();
+  clearTimeout(autoRefreshTimeout); autoRefreshTimeout = null;
+  if (autoRefreshNextAt) {
+    const delay = Math.max(0, autoRefreshNextAt - Date.now());
+    autoRefreshTimeout = setTimeout(() => loadTop('auto'), delay);
+  }
+});
 
 // === TRI ===
 
@@ -165,8 +173,6 @@ async function loadTop(source = 'manuel') {
     const errEl = document.getElementById('top-error-msg');
     const cacheMsg = d._cached ? 'C411 inaccessible — données en cache' : '';
     if (errEl) errEl.textContent = cacheMsg;
-    const errEl2 = document.getElementById('autograb-error-msg');
-    if (errEl2) errEl2.textContent = cacheMsg;
     if (d._cached && d.date) { lastRefreshTime = d.date; }
     const items = filterTopItems(d.items || []);
     topItemsCache = items;
@@ -243,13 +249,11 @@ function updateLastGrabDisplay(count) {
 }
 
 /** Charge la config auto-refresh depuis /api/auto-refresh et peuple le formulaire.
- *  @param {boolean} [startInterval] - Démarre le timer client si true */
+ *  @param {boolean} [startInterval] - Démarre le countdown 1s si true (premier appel) */
 async function loadAutoRefreshConfig(startInterval = false) {
   try {
     const d = await fetchT(BASE + '/api/auto-refresh', { credentials: 'include' }).then(r => r.json());
     document.getElementById('autorefresh-enabled').checked = !!d.grab_enabled;
-    autoRefreshTimerEnabled  = !!d.timer_enabled;
-    autoRefreshIntervalHours = d.timer_interval_hours || 1;
     const serverDate = d.last_run || d.top_cache_date;
     if (serverDate) {
       const serverTime = new Date(serverDate).getTime();
@@ -257,63 +261,18 @@ async function loadAutoRefreshConfig(startInterval = false) {
       if (serverTime > localTime) {
         lastRefreshTime = serverDate;
         lastRefreshType = d.last_run_source || 'auto';
-        localStorage.setItem('lastRefreshTime', lastRefreshTime);
-        localStorage.setItem('lastRefreshType', lastRefreshType);
         updateLastGrabDisplay(d.last_grab_count ?? 0);
       }
     }
     if (d.top_cache_date) updateTopLastRefresh(d.top_cache_date);
     updateLastRefreshDisplay();
-    if (startInterval) applyAutoRefresh(d.last_run);
+    if (startInterval && !countdownStarted) {
+      countdownStarted = true;
+      setInterval(updateTopNextRefresh, 1000);
+    }
   } catch (e) { console.error('[auto-refresh]', e); }
 }
 
-/** Configure les timers clients du refresh automatique du top leechers.
- *  L'intervalle et l'état enabled proviennent de la config Timer (autoRefreshTimerEnabled / Hours).
- *  @param {string|null} [lastRun] - Date ISO du dernier run serveur */
-function applyAutoRefresh(lastRun = null) {
-  clearInterval(autoRefreshInterval);    autoRefreshInterval    = null;
-  clearInterval(autoRefreshCountdown);   autoRefreshCountdown   = null;
-  clearTimeout(autoRefreshFirstTimeout); autoRefreshFirstTimeout = null;
-
-  if (!autoRefreshTimerEnabled) {
-    autoRefreshNextAt = null;
-    localStorage.removeItem('autoRefreshNextAt');
-    updateTopNextRefresh();
-    return;
-  }
-
-  const intervalMs = autoRefreshIntervalHours * 3600000;
-  // Source de vérité partagée avec la card Timer (timerNextAt)
-  const timerStored = parseInt(localStorage.getItem('timerNextAt') || '0');
-  const fromLastRun = lastRun ? new Date(lastRun).getTime() + intervalMs : 0;
-  let nextAt;
-  if (timerStored > Date.now()) {
-    nextAt = timerStored;                          // en sync avec la card Timer
-  } else if (fromLastRun > Date.now()) {
-    nextAt = fromLastRun;
-  } else {
-    nextAt = Date.now() + intervalMs;
-  }
-
-  autoRefreshNextAt = nextAt;
-
-  const delay = Math.max(0, autoRefreshNextAt - Date.now());
-
-  autoRefreshFirstTimeout = setTimeout(() => {
-    autoRefreshNextAt = Date.now() + intervalMs;
-    localStorage.setItem('timerNextAt', autoRefreshNextAt); // maintient la synchro
-    loadTop('auto');
-    autoRefreshInterval = setInterval(() => {
-      autoRefreshNextAt = Date.now() + intervalMs;
-      localStorage.setItem('timerNextAt', autoRefreshNextAt);
-      loadTop('auto');
-    }, intervalMs);
-  }, delay);
-
-  autoRefreshCountdown = setInterval(updateTopNextRefresh, 1000);
-  updateTopNextRefresh();
-}
 
 /** Enregistre l'état du toggle grab via POST /api/auto-refresh. */
 async function saveAutoRefresh() {
@@ -335,10 +294,6 @@ async function triggerAutoGrab(showFeedback = false) {
     const d = await r.json();
     lastRefreshTime = new Date().toISOString();
     lastRefreshType = showFeedback ? 'manuel' : 'auto';
-    localStorage.setItem('lastRefreshTime', lastRefreshTime);
-    localStorage.setItem('lastRefreshType', lastRefreshType);
-    localStorage.removeItem('autoRefreshNextAt');
-    applyAutoRefresh(lastRefreshTime);
     updateLastRefreshDisplay();
     updateLastGrabDisplay(d.grabbed ?? 0);
     if (d.grabbed > 0) {

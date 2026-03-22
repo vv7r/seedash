@@ -11,6 +11,45 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.5.4] - 2026-03-22
+
+### Ajouté
+- `stats.js` : dispatch du CustomEvent `timer-status` depuis `loadStats()` toutes les 5s — les onglets Top et Config écoutent cet événement pour piloter leur countdown
+- `server.js` : champs `timer_enabled` et `timer_next_at` ajoutés à `GET /api/stats`
+- `app.js` : `visibilitychange` déclenche un `loadStats()` immédiat au retour sur l'onglet pour resynchroniser le timer sans drift
+
+### Modifié
+- `top.js` : timer refactorisé — écoute `timer-status` au lieu de calculer localement ; `setTimeout` unique remplace l'ancien `setInterval` de polling ; plus de `localStorage`
+- `rules.js` : timer refactorisé — écoute `timer-status` ; suppression de `applyTimerCountdown()` et des références `localStorage` timer
+- `server.js` : `POST /api/timer/config` réinitialise `last_run` à maintenant lors de la réactivation du timer
+- `server.js` : `DELETE /api/torrents/:hash` — validation `typeof` précise sur `req.query.name`
+- `server.js` : cookie `maxAge` aligné dynamiquement sur `token_expiry` (`1h`–`168h`)
+- `server.js` : `GET /api/auto-refresh` — retrait des champs `timer_enabled` et `timer_interval_hours` jamais lus par le client
+- `stats.js` : `loadConnections()` redirige vers le login sur réponse 401
+- `theme-init.js` : ajout de `'use strict'`
+- `ecosystem.config.js` : fichier statique versionné, plus généré dynamiquement au setup
+
+### Supprimé
+- `server.js` : endpoints morts retirés — `GET/POST /api/auto-grab/status|config`, `GET/DELETE /api/grabbed-torrents`
+- `server.js` : génération dynamique de `ecosystem.config.js` dans `POST /api/setup`
+- `server.js` : import `CLEAN_RULE_KEYS` (jamais utilisé)
+- `lib/cleaner.js` : fonction `reschedule()` et variable `currentTask` (dead code, jamais appelé depuis server.js)
+- `lib/grab.js` : fonction `scheduleAutoGrab()` et variable `autoGrabTimer` (dead code)
+- `lib/qbit.js` : `qbitLogin` retiré des exports (usage interne uniquement)
+- `top.js` : branche morte référençant `autograb-error-msg` (élément absent du HTML)
+- `top.js` / `rules.js` : toutes les références `localStorage` liées aux timers
+- `app.js` : variable `rulesOrig` (déclarée et jamais lue)
+- `config.json` : champs obsolètes `auto_grab.interval_minutes` et `auto_clean.interval_hours` (vestiges des anciens timers séparés)
+- `.gitignore` : `ecosystem.config.js` retiré (fichier désormais versionné)
+
+### Corrigé
+- Timer désynchronisé après absence sur l'onglet — résolu par resync via `visibilitychange` + source de vérité serveur
+- Countdown qui continuait à tourner avec le toggle désactivé — résolu par `timer-status` avec `enabled: false`
+- `server.js` : `DEFAULT_CLEAN_RULES_ON` — `upload_min_mb` corrigé à `false` pour s'aligner sur le frontend
+- `server.js` : `initConfig()` ne crée plus les champs `interval_hours`/`interval_minutes` obsolètes dans les blocs auto_clean/auto_grab
+
+---
+
 ## [1.5.3] - 2026-03-21
 
 ### Corrigé
@@ -148,7 +187,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.3...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.4...HEAD
+[1.5.4]: https://github.com/vv7r/seedash/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/vv7r/seedash/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/vv7r/seedash/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/vv7r/seedash/compare/v1.5.0...v1.5.1

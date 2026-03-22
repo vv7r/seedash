@@ -8,9 +8,14 @@ let histSortDir = parseInt(localStorage.getItem('hist-sort-dir')) || -1;
 let autoSaveTimer    = null;
 
 // État timer
-let timerNextAt    = null;
-let timerCountdown = null;
-let lastSavedTimer = { interval_hours: null, enabled: null };
+let timerNextAt           = null;
+let timerCountdownStarted = false;
+
+window.addEventListener('timer-status', e => {
+  timerNextAt = e.detail.enabled && e.detail.next_at
+    ? new Date(e.detail.next_at).getTime() : null;
+  updateTimerNextRun();
+});
 
 // === RÈGLES DÉFINITIONS ===
 
@@ -43,7 +48,7 @@ async function loadRules() {
       val: (d[def.key] ?? (def.defVal * (def.displayScale || 1))) / (def.displayScale || 1),
       on: on[def.key] !== undefined ? on[def.key] : def.defOn,
     }));
-    rulesOrig = JSON.parse(JSON.stringify(rules));
+
     renderRules();
   } catch (e) { console.error(e); }
 }
@@ -140,22 +145,6 @@ function updateTimerNextRun() {
     : `Prochain cycle dans : ${m} min ${String(s).padStart(2,'0')} sec`;
 }
 
-/** Calcule timerNextAt et démarre le setInterval du compte à rebours Timer. */
-function applyTimerCountdown(intervalHours, enabled) {
-  clearInterval(timerCountdown); timerCountdown = null;
-  if (!enabled) {
-    timerNextAt = null;
-    localStorage.removeItem('timerNextAt');
-    updateTimerNextRun();
-    return;
-  }
-  const intervalMs = (intervalHours || 1) * 3600000;
-  const stored     = parseInt(localStorage.getItem('timerNextAt') || '0');
-  timerNextAt = stored > Date.now() ? stored : Date.now() + intervalMs;
-  if (!(stored > Date.now())) localStorage.setItem('timerNextAt', timerNextAt);
-  timerCountdown = setInterval(updateTimerNextRun, 1000);
-  updateTimerNextRun();
-}
 
 // === CLEANER ===
 
@@ -191,8 +180,10 @@ async function loadTimerStatus() {
     document.getElementById('timer-enabled').checked   = !!d.enabled;
     document.getElementById('timer-interval').value    = d.interval_hours || 1;
     document.getElementById('timer-interval').disabled = !d.enabled;
-    lastSavedTimer = { interval_hours: d.interval_hours || 1, enabled: !!d.enabled };
-    applyTimerCountdown(d.interval_hours, d.enabled);
+    if (!timerCountdownStarted) {
+      timerCountdownStarted = true;
+      setInterval(updateTimerNextRun, 1000);
+    }
   } catch (e) { console.error('[timer]', e); }
 }
 
@@ -207,9 +198,8 @@ async function saveTimerConfig() {
     body: JSON.stringify({ interval_hours, enabled })
   });
   if (!r.ok) throw new Error(`timer ${r.status}`);
-  const changed = interval_hours !== lastSavedTimer.interval_hours || enabled !== lastSavedTimer.enabled;
-  if (changed) { localStorage.removeItem('timerNextAt'); localStorage.removeItem('autoRefreshNextAt'); }
   await loadTimerStatus();
+  await loadStats();
 }
 
 /** Exécute le cleaner immédiatement via POST /api/cleaner/run. */
@@ -222,7 +212,6 @@ async function runCleanerNow() {
     const d = await r.json();
     const n = d.deleted ?? 0;
     showMsg('cleaner-run-msg', n === 0 ? 'Aucun torrent supprimé' : `${n} torrent${n > 1 ? 's' : ''} supprimé${n > 1 ? 's' : ''}`);
-    localStorage.removeItem('cleanerNextAt');
     await loadCleanerStatus();
     loadStats();
   } catch (e) {

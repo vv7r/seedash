@@ -16,7 +16,7 @@ const qbit     = require('./lib/qbit');
 const ultracc  = require('./lib/ultracc');
 const grab     = require('./lib/grab');
 
-const { SECRET_PATHS, GRAB_RULE_KEYS, CLEAN_RULE_KEYS, VALID_RULE_KEYS, getIn, setIn, maskSecret, isHttpUrl } = helpers;
+const { SECRET_PATHS, GRAB_RULE_KEYS, VALID_RULE_KEYS, getIn, setIn, maskSecret, isHttpUrl } = helpers;
 
 // --- Config ---
 const CFG_PATH           = path.join(__dirname, 'config.json');
@@ -239,9 +239,9 @@ function initConfig() {
   if (!cfg.auto_grab.rules_on) { cfg.auto_grab.rules_on = { ...DEFAULT_GRAB_RULES_ON }; changed = true; }
   if (!('network_max_pct' in (cfg.auto_grab.rules || {})))    { cfg.auto_grab.rules.network_max_pct = 90;    changed = true; }
   if (!('network_max_pct' in (cfg.auto_grab.rules_on || {}))) { cfg.auto_grab.rules_on.network_max_pct = false; changed = true; }
-  const DEFAULT_CLEAN_RULES_ON = { ratio_min: true, ratio_max: false, age_min_hours: true, age_max_hours: false, upload_min_mb: true };
+  const DEFAULT_CLEAN_RULES_ON = { ratio_min: true, ratio_max: false, age_min_hours: true, age_max_hours: false, upload_min_mb: false };
   if (!cfg.auto_clean) {
-    cfg.auto_clean = { enabled: false, interval_hours: 1,
+    cfg.auto_clean = { enabled: false,
       rules: { ratio_min: 1.0, age_min_hours: 48 }, rules_on: { ...DEFAULT_CLEAN_RULES_ON } };
     changed = true;
   }
@@ -250,7 +250,7 @@ function initConfig() {
   // Initialiser les blocs de connexion s'ils sont absents (fresh install sans connections.json complet)
   // Timer combiné clean → grab
   if (!cfg.timer) {
-    cfg.timer = { enabled: false, interval_hours: cfg.auto_clean?.interval_hours || 6, last_run: null };
+    cfg.timer = { enabled: false, interval_hours: 6, last_run: null };
     changed = true;
   }
   if (!cfg.c411)        { cfg.c411        = { url: 'https://c411.org/api/torznab', apikey: '' }; }
@@ -498,7 +498,7 @@ app.delete(`${cfg.baseurl}/api/torrents/:hash`, auth.requireAuth, async (req, re
   const { hash } = req.params;
   if (!/^[a-f0-9]{40}$/i.test(hash)) return res.status(400).json({ error: 'Hash invalide' });
   const deleteFiles = req.query.deleteFiles === 'true';
-  const name        = String(req.query.name || hash).slice(0, 256);
+  const name        = (typeof req.query.name === 'string' ? req.query.name : hash).slice(0, 256);
   try {
     await qbit.qbitRequest('post', '/torrents/delete', `hashes=${hash}&deleteFiles=${deleteFiles}`);
     const lhash = hash.toLowerCase();
@@ -603,8 +603,13 @@ app.get(`${cfg.baseurl}/api/stats`, auth.requireAuth, async (req, res) => {
     console.error('[ultracc_api]', e.message);
   }
 
-  const c411_base = (cfg.c411?.url || '').replace('/api/torznab', '') || 'https://c411.org';
-  res.json({ active, avg_ratio: Math.round(avgRatio * 100) / 100, dl_speed, up_speed, disk_used_gb, disk_total_gb, traffic_used_pct, traffic_reset_date, c411_base });
+  const c411_base     = (cfg.c411?.url || '').replace('/api/torznab', '') || 'https://c411.org';
+  const timerEnabled  = !!cfg.timer?.enabled;
+  const timerLastRun  = cfg.timer?.last_run ? new Date(cfg.timer.last_run).getTime() : 0;
+  const timerNextAt   = timerEnabled && timerLastRun
+    ? new Date(timerLastRun + (cfg.timer.interval_hours || 1) * 3600000).toISOString()
+    : null;
+  res.json({ active, avg_ratio: Math.round(avgRatio * 100) / 100, dl_speed, up_speed, disk_used_gb, disk_total_gb, traffic_used_pct, traffic_reset_date, c411_base, timer_enabled: timerEnabled, timer_next_at: timerNextAt });
 });
 
 // ============================================================
@@ -671,21 +676,6 @@ app.post(`${cfg.baseurl}/api/cleaner/schedule`, auth.requireAuth, (req, res) => 
 // ROUTES AUTO-GRAB
 // ============================================================
 
-// GET /api/auto-grab/status
-app.get(`${cfg.baseurl}/api/auto-grab/status`, auth.requireAuth, (req, res) => {
-  res.json(grab.getStatus());
-});
-
-// POST /api/auto-grab/config
-app.post(`${cfg.baseurl}/api/auto-grab/config`, auth.requireAuth, (req, res) => {
-  const { enabled } = req.body;
-  grab.setEnabled(!!enabled);
-  cfg.auto_grab.enabled = !!enabled;
-  saveCfg();
-  console.log(`[auto-grab] enabled=${!!enabled}`);
-  res.json({ ok: true, ...grab.getStatus() });
-});
-
 let lastAutoGrabRunAt = 0;
 
 // POST /api/auto-grab/run
@@ -728,24 +718,6 @@ app.delete(`${cfg.baseurl}/api/history`, auth.requireAuth, (req, res) => {
   } catch(e) { res.status(500).json({ error: 'Erreur serveur interne' }); }
 });
 
-// GET /api/grabbed-torrents
-app.get(`${cfg.baseurl}/api/grabbed-torrents`, auth.requireAuth, (req, res) => {
-  res.json(torrentList);
-});
-
-// DELETE /api/grabbed-torrents
-app.delete(`${cfg.baseurl}/api/grabbed-torrents`, auth.requireAuth, (req, res) => {
-  const { hash } = req.body;
-  if (!hash) return res.status(400).json({ error: 'hash requis' });
-  torrentList = torrentList.filter(t => t.hash !== hash);
-  try {
-    const tmp = TORRENT_LIST_PATH + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(torrentList, null, 2));
-    fs.renameSync(tmp, TORRENT_LIST_PATH);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Erreur serveur interne' }); }
-});
-
 // ============================================================
 // ROUTES SETUP (premier démarrage — non protégées)
 // ============================================================
@@ -770,13 +742,6 @@ app.post(`${cfg.baseurl}/api/setup`, async (req, res) => {
   cfg.auth.username      = u;
   cfg.auth.password_hash = await bcrypt.hash(p, 12);
   cfg.auth.setup_completed = true;
-  const ecoPath = path.join(__dirname, 'ecosystem.config.js');
-  if (!fs.existsSync(ecoPath)) {
-    fs.writeFileSync(ecoPath,
-      `module.exports = {\n  apps: [{ name: 'seedash', script: 'server.js' }]\n};\n`
-    );
-    console.log('[setup] ecosystem.config.js généré');
-  }
   saveConn();
   console.log('[setup] Configuration initiale complétée');
   res.json({ ok: true });
@@ -812,7 +777,7 @@ app.post(`${cfg.baseurl}/api/login`, async (req, res) => {
     httpOnly: true,
     secure:   req.secure || req.headers['x-forwarded-proto'] === 'https',
     sameSite: 'Strict',
-    maxAge:   24 * 60 * 60 * 1000,
+    maxAge:   parseInt(expiry) * (expiry.endsWith('h') ? 3600000 : 86400000),
     path:     cfg.baseurl + '/',
   });
   res.json({ ok: true });
@@ -878,8 +843,6 @@ app.get(`${cfg.baseurl}/api/auto-refresh`, auth.requireAuth, (req, res) => {
   const st = grab.getStatus();
   res.json({
     grab_enabled:          cfg.auto_grab.enabled,
-    timer_enabled:         !!cfg.timer?.enabled,
-    timer_interval_hours:  cfg.timer?.interval_hours || 1,
     last_run:              st.last_run,
     last_run_source:       st.last_run_source || 'auto',
     last_grab_count:       st.last_grab_count,
@@ -910,7 +873,9 @@ app.get(`${cfg.baseurl}/api/timer/status`, auth.requireAuth, (req, res) => {
 app.post(`${cfg.baseurl}/api/timer/config`, auth.requireAuth, (req, res) => {
   const { enabled, interval_hours } = req.body;
   const hours = Math.max(1, Math.min(8760, parseInt(interval_hours) || 1));
-  cfg.timer = { ...cfg.timer, enabled: !!enabled, interval_hours: hours };
+  const wasDisabled = !cfg.timer?.enabled;
+  const last_run = (!!enabled && wasDisabled) ? new Date().toISOString() : (cfg.timer?.last_run || null);
+  cfg.timer = { ...cfg.timer, enabled: !!enabled, interval_hours: hours, last_run };
   saveCfg();
   scheduleTimer();
   console.log(`[timer] config : ${hours}h, enabled=${!!enabled}`);
