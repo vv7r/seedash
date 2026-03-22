@@ -96,15 +96,24 @@ function saveUploadHistory() {
 }
 
 /**
- * Supprime de uploadHistory les entrées dont le hash n'est plus actif dans qBittorrent.
+ * Purge les entrées inactives les plus anciennes de uploadHistory si le cap est dépassé.
+ * Les torrents actifs ne sont jamais purgés.
  * @param {Set<string>} activeHashes - Ensemble des hashs actuellement actifs
  */
+const UPLOAD_HISTORY_MAX = 500;
 function pruneUploadHistory(activeHashes) {
-  let dirty = false;
-  for (const hash of Object.keys(uploadHistory)) {
-    if (!activeHashes.has(hash)) { delete uploadHistory[hash]; dirty = true; }
-  }
-  if (dirty) saveUploadHistory();
+  const allHashes = Object.keys(uploadHistory);
+  if (allHashes.length <= UPLOAD_HISTORY_MAX) return;
+  const inactive = allHashes.filter(h => !activeHashes.has(h));
+  inactive.sort((a, b) => {
+    const lastA = uploadHistory[a]?.length ? uploadHistory[a][uploadHistory[a].length - 1][0] : 0;
+    const lastB = uploadHistory[b]?.length ? uploadHistory[b][uploadHistory[b].length - 1][0] : 0;
+    return lastA - lastB;
+  });
+  const toRemove = inactive.slice(0, allHashes.length - UPLOAD_HISTORY_MAX);
+  if (!toRemove.length) return;
+  for (const h of toRemove) delete uploadHistory[h];
+  saveUploadHistory();
 }
 
 // Liste plate des torrents grabbés
@@ -464,7 +473,7 @@ app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, async (req, res) => {
 
 // POST /api/grab
 app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
-  const { url, name, page_url, infohash, category } = req.body;
+  const { url, name, page_url, infohash, category, size, leechers, seeders } = req.body;
   if (!url) return res.status(400).json({ error: 'url requis' });
   try {
     const allowed = new URL(cfg.c411.url).hostname;
@@ -484,7 +493,9 @@ app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
       if (category != null) { categoryMap[lhash] = String(category); saveCategoryMap(); }
       appendTorrentList([{ hash: lhash, name, url: page_url || null }]);
     }
-    console.log(`[grab] ok: ${name || '(sans nom)'}`);
+    const sizeNum = parseInt(size) || 0;
+    const sizeStr = sizeNum >= 1e9 ? `${(sizeNum / 1e9).toFixed(1)} GB` : `${(sizeNum / 1e6).toFixed(0)} MB`;
+    console.log(`[grab] ok: ${name || '(sans nom)'} (${sizeStr}, ${parseInt(leechers) || 0}L/${parseInt(seeders) || 0}S)`);
     if (name) appendHistory('grab', 1, 'manuel', [{ name, url: page_url || null }]);
     res.json({ ok: true });
   } catch (e) {
@@ -504,8 +515,7 @@ app.delete(`${cfg.baseurl}/api/torrents/:hash`, auth.requireAuth, async (req, re
     const lhash = hash.toLowerCase();
     if (nameMap[lhash]) { delete nameMap[lhash]; saveNameMap(); }
     if (categoryMap[lhash]) { delete categoryMap[lhash]; saveCategoryMap(); }
-    if (uploadHistory[lhash]) { delete uploadHistory[lhash]; saveUploadHistory(); }
-    appendHistory('delete', 1, 'manuel', [{ name, url: `${(cfg.c411?.url || '').replace('/api/torznab', '') || 'https://c411.org'}/torrents/${hash}` }]);
+    appendHistory('delete', 1, 'manuel', [{ name, hash: lhash, url: `${(cfg.c411?.url || '').replace('/api/torznab', '') || 'https://c411.org'}/torrents/${hash}` }]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'Erreur serveur interne' });
@@ -928,11 +938,12 @@ async function pruneNameMap() {
 setInterval(async () => {
   try {
     const torrents = await qbit.qbitRequest('get', '/torrents/info');
-    const now      = Math.floor(Date.now() / 1000);
+    const now      = Math.floor(Date.now() / 1000 / 300) * 300; // arrondi à 5min
     for (const t of torrents) {
       const hash = t.hash.toLowerCase();
       if (!uploadHistory[hash]) uploadHistory[hash] = [];
       uploadHistory[hash].push([now, t.uploaded]);
+      if (uploadHistory[hash].length > 8640) uploadHistory[hash] = uploadHistory[hash].slice(-8640);
     }
     const activeHashes = new Set(torrents.map(t => t.hash.toLowerCase()));
     pruneUploadHistory(activeHashes);
@@ -952,15 +963,13 @@ app.use((err, req, res, next) => {
 cleaner.setRunCompleteCallback((st) => {
   saveCfg();
   if (st.last_deleted_hashes?.length) {
-    let nameMapDirty = false, catMapDirty = false, uploadDirty = false;
+    let nameMapDirty = false, catMapDirty = false;
     for (const h of st.last_deleted_hashes) {
       if (nameMap[h])        { delete nameMap[h];        nameMapDirty = true; }
       if (categoryMap[h])    { delete categoryMap[h];    catMapDirty  = true; }
-      if (uploadHistory[h])  { delete uploadHistory[h];  uploadDirty  = true; }
     }
     if (nameMapDirty) saveNameMap();
     if (catMapDirty)  saveCategoryMap();
-    if (uploadDirty)  saveUploadHistory();
   }
   if (st.last_deleted_count > 0) {
     appendHistory('clean', st.last_deleted_count, st.last_run_type, st.last_deleted_names || []);

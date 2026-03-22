@@ -23,11 +23,11 @@ Dashboard Node.js/Express pour gérer une seedbox Ultra.cc : tracker C411 (Torzn
 ## Fonctionnalités
 
 - **Top leechers** — top des torrents C411 par leechers, filtrage par catégorie, tri par colonne, grab direct vers qBittorrent
-- **Torrents actifs** — suivi ratio/âge/upload en temps réel, courbe d'upload, suppression manuelle
+- **Torrents actifs** — suivi ratio/âge/upload en temps réel, courbe d'upload avec timeline brush interactive, suppression manuelle
 - **Stats globales** — torrents actifs, ratio moyen, vitesses DL/UP, espace disque, trafic réseau mensuel
 - **Auto clean** — suppression planifiée des torrents selon des règles configurables (ratio, âge, upload minimum)
 - **Auto grab** — grab automatique périodique des meilleurs torrents selon des limites configurables
-- **Historique** — journal des grabs et suppressions automatiques/manuels, suppression individuelle d'entrées
+- **Historique** — journal des grabs et suppressions automatiques/manuels, courbe d'upload persistée après suppression, suppression individuelle d'entrées
 - **LEDs de statut** — indicateurs de connexion C411 / qBittorrent / Ultra.cc en temps réel
 - **Authentification JWT** — login avec protection brute-force, changement de mot de passe
 - **Secrets chiffrés** — API keys et mots de passe chiffrés AES-256-GCM sur disque
@@ -449,7 +449,7 @@ seedash/
 │   ├── theme-init.js      — restauration du thème sombre avant rendu (évite le flash)
 │   ├── utils.js           — helpers purs : he(), fmt*(), toast, CAT_NAMES, BASE
 │   ├── stats.js           — LEDs de connexion, loadStats, updateQbitStats
-│   ├── charts.js          — courbe upload par torrent (canvas 2D), modal agrandissement
+│   ├── charts.js          — courbe upload par torrent (canvas 2D), modal avec timeline brush
 │   ├── top.js             — top leechers, tri, sélection, auto-refresh
 │   ├── actifs.js          — torrents actifs, badge suppression, insertChartRow
 │   ├── rules.js           — règles, cleaner, historique, secrets

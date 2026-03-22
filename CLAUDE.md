@@ -7,7 +7,7 @@ Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS sépar
 ### Serveur (`lib/`)
 
 - **`server.js`** — Express API, wiring des modules, timers auto-grab, routes
-- **`lib/cleaner.js`** — timer de nettoyage, exporte `shouldDelete()` (fonction pure testable)
+- **`lib/cleaner.js`** — timer de nettoyage, exporte `shouldDelete()` et `deleteReason()` (fonctions pures testables)
 - **`lib/auth.js`** — auth JWT, brute-force, middleware `requireAuth`, `decryptSecrets`
 - **`lib/qbit.js`** — client qBittorrent (login, request, gestion session 403)
 - **`lib/ultracc.js`** — client Ultra.cc (stats, cache TTL 5 min)
@@ -24,7 +24,7 @@ Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS sépar
 - **`theme-init.js`** — 3 lignes bloquantes en `<head>` pour restaurer le thème sans flash
 - **`utils.js`** — helpers purs : `he`, `fmt*`, `toast`, `showMsg`, `BASE`, `CAT_NAMES`, `c411Base`
 - **`stats.js`** — LEDs de connexion, `loadConnections`, `updateQbitStats`, `loadStats`
-- **`charts.js`** — courbe upload par torrent (canvas 2D), modal agrandissement
+- **`charts.js`** — courbe upload par torrent (canvas 2D), modal avec timeline brush, couleurs via CSS variables
 - **`top.js`** — top leechers, tri, sélection, auto-refresh countdown, `triggerAutoGrab`
 - **`actifs.js`** — torrents actifs, badge "prêt à supprimer", `insertChartRow`
 - **`rules.js`** — règles auto-grab/clean, historique, secrets, countdown cleaner
@@ -76,7 +76,9 @@ Les seuils maximaux (`ratio_max`, `age_max_hours`) sont **indépendants** (OU) :
 
 #### Condition `upload_min_mb`
 
-- Échantillons collectés toutes les 5 minutes dans `logs/upload-history.json` (`[timestamp_s, cumul_bytes]` par hash)
+- Échantillons collectés toutes les 5 minutes dans `logs/upload-history.json` (`[timestamp_s, cumul_bytes]` par hash), timestamps arrondis au multiple de 300s
+- Cap : 8640 points par hash (≈ 30 jours), 500 hashes max — `pruneUploadHistory()` ne purge que les inactifs triés par ancienneté
+- Les données d'upload sont **conservées après suppression** (manuelle ou auto-clean) pour permettre la consultation du graphique depuis l'historique
 - La fenêtre est **stricte** : l'historique doit couvrir toute la durée — `points[0][0] <= now - upload_window_hours`
 - Si l'historique ne couvre pas encore la fenêtre (torrent ancien dont le suivi a démarré récemment, ou torrent trop jeune), la condition est considérée non éligible (`false`) — pas de suppression
 - Exige ≥ 2 points dans la fenêtre pour calculer le delta ; pas de fallback sur l'historique total
@@ -153,6 +155,22 @@ Côté client (`autoFixRules()`) : corrige automatiquement la valeur invalide et
 `toast(msg, type)` crée dynamiquement un élément dans `#toast-container` (fixed, bas-droite). Les toasts s'empilent : le nouveau apparaît en bas, les anciens montent. Chaque toast disparaît après 3,5s (`success`) ou 7s (`error`) avec fondu CSS. `type` accepte `'success'` (vert) ou `'error'` (rouge).
 
 ## Frontend
+
+### Timeline brush (graphiques)
+
+La modal graphique utilise un canvas brush (`#chart-modal-brush`) en bas du graphique principal pour la sélection de plage temporelle :
+- `brushStart` / `brushEnd` : ratios 0-1, réinitialisés à l'ouverture de la modal
+- Interactions : drag poignées (ew-resize), pan zone sélectionnée (grab/grabbing), double-clic/clic droit → reset
+- `sliceByBrush(points)` filtre les données selon la sélection
+- `drawBrush()` dessine la mini-courbe d'overview avec overlay sombre et poignées
+- Toutes les couleurs chart/brush lues depuis CSS variables (`--chart-*`, `--brush-*`) via `getComputedStyle`
+- Le mousedown target est tracké séparément du click pour éviter la fermeture de la modal pendant un drag
+
+### Logs auto-clean / auto-grab
+
+Les logs dans `auto.log` affichent la raison de chaque action :
+- **Clean** : `Supprimé : nom (ratio=X, âge=Xj) — raison` — raison via `deleteReason()` (ex: `ratio_max (≥2.0)`, `ratio≥1.0 + âge≥48h`)
+- **Grab** : `Grabé : nom (X GB, XL/XS)` — taille, leechers, seeders
 
 ### Historique — suppression d'entrées
 

@@ -205,7 +205,7 @@ async function loadTop(source = 'manuel') {
 function toggleSelectAll(el) {
   topItems.forEach((t, i) => {
     if (!t.link) return;
-    el.checked ? selectedGrab.set(t.link, { name: t.name, infohash: t.infohash || '', category: t.category ?? null }) : selectedGrab.delete(t.link);
+    el.checked ? selectedGrab.set(t.link, { name: t.name, infohash: t.infohash || '', category: t.category ?? null, size: t.size || 0, leechers: t.leechers || 0, seeders: t.seeders || 0 }) : selectedGrab.delete(t.link);
     const cb = document.querySelector(`#top-body input[data-idx="${i}"]`);
     if (cb) cb.checked = el.checked;
   });
@@ -215,7 +215,7 @@ function toggleSelectAll(el) {
 function toggleGrab(idx, el) {
   const t = topItems[idx];
   if (!t?.link) return;
-  el.checked ? selectedGrab.set(t.link, { name: t.name, infohash: t.infohash || '', category: t.category ?? null }) : selectedGrab.delete(t.link);
+  el.checked ? selectedGrab.set(t.link, { name: t.name, infohash: t.infohash || '', category: t.category ?? null, size: t.size || 0, leechers: t.leechers || 0, seeders: t.seeders || 0 }) : selectedGrab.delete(t.link);
   const all = document.getElementById('top-select-all');
   if (all) all.checked = topItems.every(t => !t.link || selectedGrab.has(t.link));
 }
@@ -225,7 +225,7 @@ async function grabOne(idx) {
   const item = topItems[idx];
   if (!item) return;
   try {
-    await fetchT(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url: item.link, name: item.name, page_url: item.page_url || null, infohash: item.infohash || '', category: item.category ?? null }) });
+    await fetchT(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url: item.link, name: item.name, page_url: item.page_url || null, infohash: item.infohash || '', category: item.category ?? null, size: item.size || 0, leechers: item.leechers || 0, seeders: item.seeders || 0 }) });
     toast('Ajouté : ' + item.name);
     loadStats();
   } catch (e) { toast('Erreur : ' + e.message, 'error'); }
@@ -234,7 +234,7 @@ async function grabOne(idx) {
 /** Envoie en séquence tous les torrents de la sélection multiple à qBittorrent. */
 async function grabSelected() {
   if (!selectedGrab.size) { toast('Aucun torrent sélectionné.', 'error'); return; }
-  for (const [url, data] of selectedGrab) await fetchT(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url, name: data.name, infohash: data.infohash, category: data.category ?? null }) });
+  for (const [url, data] of selectedGrab) await fetchT(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url, name: data.name, infohash: data.infohash, category: data.category ?? null, size: data.size || 0, leechers: data.leechers || 0, seeders: data.seeders || 0 }) });
   toast(selectedGrab.size + ' torrent(s) envoyé(s) à qBittorrent.');
   selectedGrab.clear();
   loadTop(); loadStats();

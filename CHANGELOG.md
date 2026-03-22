@@ -11,6 +11,33 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.6.0] - 2026-03-22
+
+### Ajouté
+- **Persistance de l'historique d'upload** — les données de courbe d'upload sont conservées après suppression manuelle ou auto-clean (cap : 8640 points/hash ≈ 30 jours, 500 hashes max)
+- **Timeline brush** — sélection interactive de la plage temporelle sur les graphiques (remplace les boutons 1h/6h/24h/48h/7j/30j), drag des poignées, pan, double-clic/clic droit pour réinitialiser
+- **Graphique dans l'historique** — bouton SVG sur chaque entrée pour ouvrir la courbe d'upload d'un torrent supprimé
+- **Raison de suppression dans les logs** — auto-clean et auto-grab affichent la raison dans `auto.log` (ex : `ratio_max (≥2.0)`, `4.2 GB, 45L/3S`)
+- **Date dans l'infobulle des graphiques** — affiche `JJ/MM HH:MM` sur deux lignes au lieu de `HH:MM` seul
+- **Footer GitHub** — lien discret vers le dépôt en bas de l'application
+- **Variables CSS pour les graphiques** — 18 variables custom (chart + brush) dans `:root` et `[data-theme="dark"]`
+
+### Modifié
+- `charts.js` : couleurs des graphiques lues depuis les variables CSS au lieu de ternaires `isDark` en dur
+- `charts.js` : timestamps d'échantillonnage upload arrondis au multiple de 5 minutes
+- `actifs.js` / `rules.js` : flèches de tri unifiées sur tous les tableaux (système CSS `::after` avec `↕ ↑ ↓`)
+- `style.css` : `font-size: 12px` sur `.cell-seedtime`, `.cell-dl`, `.cell-up` ciblé sur `td` uniquement (ne s'applique plus aux `th`)
+- `lib/cleaner.js` : nouvelle fonction `deleteReason()` — retourne la raison de suppression pour le log
+- `lib/grab.js` : log enrichi avec taille/leechers/seeders pour chaque torrent grabé
+- `server.js` : `pruneUploadHistory()` réécrit — cap à 500 hashes, ne purge que les inactifs triés par ancienneté
+
+### Supprimé
+- Boutons de plage temporelle (`btn-range`, `chart-range-btns`) — remplacés par le brush
+- Fonction `filterByRange()` dans `charts.js` — remplacée par `sliceByBrush()`
+- CSS des sélecteurs `th[data-action="sort-actifs"]` et `th[data-sort]` — remplacés par `.sortable`
+
+---
+
 ## [1.5.4] - 2026-03-22
 
 ### Ajouté
@@ -187,7 +214,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.5.4...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/vv7r/seedash/compare/v1.5.4...v1.6.0
 [1.5.4]: https://github.com/vv7r/seedash/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/vv7r/seedash/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/vv7r/seedash/compare/v1.5.1...v1.5.2
