@@ -256,6 +256,7 @@ function initConfig() {
   }
   if (!cfg.auto_clean.rules)    { cfg.auto_clean.rules    = { ratio_min: 1.0, age_min_hours: 48 }; changed = true; }
   if (!cfg.auto_clean.rules_on) { cfg.auto_clean.rules_on = { ...DEFAULT_CLEAN_RULES_ON }; changed = true; }
+  if (cfg.auto_clean.delete_files === undefined) { cfg.auto_clean.delete_files = false; changed = true; }
   // Initialiser les blocs de connexion s'ils sont absents (fresh install sans connections.json complet)
   // Timer combiné clean → grab
   if (!cfg.timer) {
@@ -303,7 +304,7 @@ app.get(`${cfg.baseurl}/api/top-leechers`, auth.requireAuth, async (req, res) =>
         leechers: Math.max(0, peers - seeders),
         seeders,
         link:     item.enclosure?.['@_url'] || '',
-        page_url: item.link || '',
+        page_url: /^https?:\/\//i.test(item.link || '') ? item.link : '',
         infohash: attr('infohash') || '',
         category: attr('category') || (Array.isArray(item.category) ? item.category[0] : item.category) || '',
         pubDate:  item.pubDate || ''
@@ -473,7 +474,9 @@ app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, async (req, res) => {
 
 // POST /api/grab
 app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
-  const { url, name, page_url, infohash, category, size, leechers, seeders } = req.body;
+  const { url, name, page_url: rawPageUrl, infohash, category, size, leechers, seeders } = req.body;
+  // Sanitize page_url : seuls http(s) sont autorisés (bloque javascript:, data:, etc.)
+  const page_url = (typeof rawPageUrl === 'string' && /^https?:\/\//i.test(rawPageUrl)) ? rawPageUrl : '';
   if (!url) return res.status(400).json({ error: 'url requis' });
   try {
     const allowed = new URL(cfg.c411.url).hostname;
@@ -539,12 +542,14 @@ app.get(`${cfg.baseurl}/api/rules`, auth.requireAuth, (req, res) => {
     ...cfg.auto_grab.rules,
     ...cfg.auto_clean.rules,
     _on: { ...cfg.auto_grab.rules_on, ...cfg.auto_clean.rules_on },
+    delete_files: !!cfg.auto_clean.delete_files,
   });
 });
 
 // POST /api/rules
 app.post(`${cfg.baseurl}/api/rules`, auth.requireAuth, (req, res) => {
-  const { _on, ...vals } = req.body;
+  const { _on, delete_files, ...vals } = req.body;
+  if (typeof delete_files === 'boolean') cfg.auto_clean.delete_files = delete_files;
   const nextGrab  = { ...cfg.auto_grab.rules };
   const nextClean = { ...cfg.auto_clean.rules };
   for (const [k, v] of Object.entries(vals)) {
@@ -769,13 +774,11 @@ app.post(`${cfg.baseurl}/api/login`, async (req, res) => {
   }
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: 'Champs manquants' });
-  if (username !== cfg.auth.username) {
-    auth.recordFailedLogin(ip);
-    return res.status(401).json({ error: 'Identifiants incorrects' });
-  }
-  if (!cfg.auth.password_hash) return res.status(401).json({ error: 'Identifiants incorrects' });
-  const ok = await bcrypt.compare(password, cfg.auth.password_hash);
-  if (!ok) {
+  // Hash factice pour éviter les timing attacks si le username est incorrect
+  const DUMMY_HASH = '$2b$12$LJ3m4ys3Lg2VBe2tWOOKxuJXOXBGqzOvQv6Q8a8Xn8e8e8e8e8e8e';
+  const hash = (username === cfg.auth.username && cfg.auth.password_hash) ? cfg.auth.password_hash : DUMMY_HASH;
+  const ok = await bcrypt.compare(password, hash);
+  if (!ok || username !== cfg.auth.username || !cfg.auth.password_hash) {
     auth.recordFailedLogin(ip);
     return res.status(401).json({ error: 'Identifiants incorrects' });
   }
@@ -982,6 +985,7 @@ initConfig();
 // Initialisation des modules lib
 auth.init(cfg);
 qbit.init(cfg);
+cleaner.initQbit(qbit.qbitRequest);
 ultracc.init(cfg);
 grab.init(cfg, { nameMap, categoryMap }, {
   getTopCache, setTopCache,

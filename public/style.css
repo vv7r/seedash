@@ -272,6 +272,7 @@ th.sort-desc::after { content: ' ↓'; opacity: 1; color: var(--accent); }
 
 /* === CARD FOOTER === */
 .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; border-top: 0.5px solid var(--border); }
+.rule-row + .card-footer { border-top: none; }
 .saved-msg { font-size: 11px; color: var(--green); opacity: 0; transition: opacity 0.3s; }
 .footer-info { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; font-size: 12px; color: var(--text2); opacity: 0.7; }
 .footer-info strong { font-weight: 500; }
@@ -450,6 +451,8 @@ body { padding-bottom: env(safe-area-inset-bottom, 0); }
 .modal-overlay.active { display: flex; }
 .modal-box { background: var(--bg3); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; width: 100%; max-width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
 .modal-msg { font-size: 14px; color: var(--text); margin-bottom: 1.25rem; line-height: 1.5; word-break: break-word; }
+.modal-checkbox { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text2); margin-bottom:1rem; cursor:pointer; user-select:none; }
+.modal-checkbox input { margin:0; cursor:pointer; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* === SPINNER === */

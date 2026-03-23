@@ -49,6 +49,9 @@ async function loadRules() {
       on: on[def.key] !== undefined ? on[def.key] : def.defOn,
     }));
 
+    const dfCb = document.getElementById('clean-delete-files');
+    if (dfCb) dfCb.checked = !!d.delete_files;
+
     renderRules();
   } catch (e) { console.error(e); }
 }
@@ -122,6 +125,8 @@ async function saveRules() {
   if (fixes.length) { renderRules(); toast(fixes.join(' — '), 'error'); }
   const payload = { _on: {} };
   rules.forEach(r => { payload[r.key] = r.val * (r.displayScale || 1); if (!r.noToggle) payload._on[r.key] = r.on; });
+  const dfCb = document.getElementById('clean-delete-files');
+  if (dfCb) payload.delete_files = dfCb.checked;
   const r = await fetchT(BASE + '/api/rules', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify(payload) });
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));

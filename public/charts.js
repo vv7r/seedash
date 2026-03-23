@@ -212,7 +212,10 @@ async function renderUploadChart(hash, canvas) {
     canvas._hoverAC = ac;
     const cutoff = (allPoints.length ? allPoints[allPoints.length-1][0] : 0) - 86400;
     const windowed = allPoints.filter(([t]) => t >= cutoff);
-    const state = drawChartOnCanvas(canvas, downsamplePoints(windowed.length >= 2 ? windowed : allPoints, 600), 150, '24h');
+    const pts = windowed.length >= 2 ? windowed : allPoints;
+    const spanMins = Math.max(1, Math.round((pts[pts.length-1][0] - pts[0][0]) / 60));
+    const label = spanMins >= 1440 ? '24h' : fmtWindow(spanMins);
+    const state = drawChartOnCanvas(canvas, downsamplePoints(pts, 600), 150, label);
     attachChartHover(canvas, state, ac.signal);
   } catch {
     container.innerHTML = '<div class="chart-empty">Erreur chargement</div>';

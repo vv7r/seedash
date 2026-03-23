@@ -7,7 +7,7 @@ Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS sépar
 ### Serveur (`lib/`)
 
 - **`server.js`** — Express API, wiring des modules, timers auto-grab, routes
-- **`lib/cleaner.js`** — timer de nettoyage, exporte `shouldDelete()` et `deleteReason()` (fonctions pures testables)
+- **`lib/cleaner.js`** — logique de nettoyage, utilise `lib/qbit.js` via injection (`initQbit`), exporte `shouldDelete()` et `deleteReason()` (fonctions pures testables)
 - **`lib/auth.js`** — auth JWT, brute-force, middleware `requireAuth`, `decryptSecrets`
 - **`lib/qbit.js`** — client qBittorrent (login, request, gestion session 403)
 - **`lib/ultracc.js`** — client Ultra.cc (stats, cache TTL 5 min)
@@ -60,8 +60,15 @@ Les règles utilisent deux objets séparés pour découpler valeur et état :
 - `cfg.rules_on` — map `{ clé: bool }`, absent = actif par défaut
 
 Ce modèle permet de modifier la valeur sans perdre l'état du toggle, et inversement.
-`GET /api/rules` retourne `{ ...cfg.rules, _on: cfg.rules_on }`.
-`POST /api/rules` accepte `{ valeurs..., _on: { clé: bool... } }`.
+`GET /api/rules` retourne `{ ...cfg.rules, _on: cfg.rules_on, delete_files: bool }`.
+`POST /api/rules` accepte `{ valeurs..., _on: { clé: bool... }, delete_files: bool }`.
+
+### Suppression des fichiers du disque
+
+Deux mécanismes contrôlent si les fichiers sont supprimés du disque (paramètre `deleteFiles` envoyé à qBittorrent) :
+
+- **Suppression manuelle** (bouton ✕ dans les torrents actifs) — la modale affiche une checkbox "Supprimer les fichiers du disque" (décochée par défaut), la valeur est passée en query param `deleteFiles=true/false`
+- **Auto-clean** — toggle global `cfg.auto_clean.delete_files` (défaut `false`), configurable dans l'UI et persisté dans `config.json`
 
 ### Noms des règles de nettoyage
 
@@ -135,7 +142,7 @@ Séquence à chaque déclenchement :
 
 Trois blocs config séparés dans `config.json` :
 - `cfg.timer` — `enabled`, `interval_hours`, `last_run` — contrôle QUAND le cycle se déclenche
-- `cfg.auto_clean` — `enabled` + `rules`/`rules_on` — contrôle SI le clean s'exécute dans le cycle
+- `cfg.auto_clean` — `enabled`, `delete_files` + `rules`/`rules_on` — contrôle SI le clean s'exécute dans le cycle
 - `cfg.auto_grab` — `enabled` + `rules`/`rules_on` — contrôle SI le grab s'exécute dans le cycle
 
 `scheduleTimer()` est recréé à chaque modification via `POST /api/timer/config`.
@@ -192,7 +199,7 @@ Pattern event delegation à suivre pour les éléments dynamiques :
 
 ### Rafraîchissement
 
-- Stats globales : `setInterval` toutes les 5s — démarré après auth
+- Stats globales : `setInterval` toutes les 60s — démarré après auth
 - Disque/trafic : `setInterval` toutes les 60s — démarré après auth
 - Torrents actifs : `setInterval` toutes les 5s — uniquement quand l'onglet est actif (`switchTab`)
 - `selectedGrab` : `Map<url, {name, infohash, category}>` (pas un Set) pour transmettre l'infohash et la catégorie au grab sélection multiple

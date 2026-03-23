@@ -235,6 +235,16 @@
           <input type="checkbox" class="toggle" id="cleaner-enabled">
         </div>
       </div>
+      <div class="rule-row">
+        <div class="rule-meta">
+          <div class="rule-name">Supprimer les fichiers du disque</div>
+          <div class="rule-desc">Efface les données en plus de le retirer de qBittorrent</div>
+        </div>
+        <div></div><div></div>
+        <div class="rule-actions">
+          <input type="checkbox" class="toggle" id="clean-delete-files">
+        </div>
+      </div>
       <div id="rules-cond"></div>
       <div class="card-footer">
         <div class="footer-info">
@@ -374,6 +384,9 @@
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal-box">
     <div class="modal-msg" id="modal-msg"></div>
+    <label class="modal-checkbox" id="modal-delete-files-wrap" style="display:none">
+      <input type="checkbox" id="modal-delete-files"> Supprimer les fichiers du disque
+    </label>
     <div class="modal-actions">
       <button class="btn-sm" id="modal-cancel">Annuler</button>
       <button class="btn-sm btn-danger" id="modal-confirm">Supprimer</button>

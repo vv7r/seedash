@@ -25,7 +25,7 @@ Dashboard Node.js/Express pour gérer une seedbox Ultra.cc : tracker C411 (Torzn
 - **Top leechers** — top des torrents C411 par leechers, filtrage par catégorie, tri par colonne, grab direct vers qBittorrent
 - **Torrents actifs** — suivi ratio/âge/upload en temps réel, courbe d'upload avec timeline brush interactive, suppression manuelle
 - **Stats globales** — torrents actifs, ratio moyen, vitesses DL/UP, espace disque, trafic réseau mensuel
-- **Auto clean** — suppression planifiée des torrents selon des règles configurables (ratio, âge, upload minimum)
+- **Auto clean** — suppression planifiée des torrents selon des règles configurables (ratio, âge, upload minimum), option suppression des fichiers du disque
 - **Auto grab** — grab automatique périodique des meilleurs torrents selon des limites configurables
 - **Historique** — journal des grabs et suppressions automatiques/manuels, courbe d'upload persistée après suppression, suppression individuelle d'entrées
 - **LEDs de statut** — indicateurs de connexion C411 / qBittorrent / Ultra.cc en temps réel
@@ -129,7 +129,7 @@ Endpoints utilisés par SeeDash :
 | `GET /torrents/info` | Liste complète des torrents (hash, name, size, ratio, state, added_on…) |
 | `GET /transfer/info` | Vitesses globales DL/UP |
 | `POST /torrents/add` | Ajout d'un torrent par lien magnet (`urls=magnet:...`) |
-| `POST /torrents/delete` | Suppression d'un torrent (`hashes=..., deleteFiles=true`) |
+| `POST /torrents/delete` | Suppression d'un torrent (`hashes=..., deleteFiles=true\|false`) |
 | `GET /sync/maindata` | Données de synchronisation (utilisé pour l'historique d'upload) |
 
 > Le mot de passe qBittorrent est stocké chiffré AES-256-GCM dans `connections.json`.
@@ -233,6 +233,7 @@ Ce que les tests vérifient :
   },
   "auto_clean": {
     "enabled": false,
+    "delete_files": false,
     "last_run": null,
     "last_deleted_count": 0,
     "last_run_type": null,
@@ -354,7 +355,7 @@ Paramètres `GET /api/top-leechers` :
 |---------|-------|-------------|
 | `GET` | `/api/torrents` | Liste des torrents actifs qBittorrent avec résolution nom C411 |
 | `POST` | `/api/grab` | Ajoute un torrent `{url, name, infohash}` (magnet → qBittorrent) |
-| `DELETE` | `/api/torrents/:hash` | Supprime un torrent et ses fichiers |
+| `DELETE` | `/api/torrents/:hash?deleteFiles=bool` | Supprime un torrent (fichiers du disque optionnel) |
 | `GET` | `/api/upload-history/:hash` | Historique d'upload (points de données) pour un torrent |
 
 ### Règles de configuration
@@ -382,7 +383,8 @@ Format retourné par `GET /api/rules` :
     "grab_limit_per_day": true,
     "size_max_gb": true,
     ...
-  }
+  },
+  "delete_files": false
 }
 ```
 

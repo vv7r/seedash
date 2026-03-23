@@ -172,10 +172,14 @@ let pendingConfirm = null;
  *  @param {string}   msg          - Message à afficher dans la modale
  *  @param {Function} onConfirm    - Callback exécuté si l'utilisateur confirme
  *  @param {string}   [confirmLabel] - Libellé du bouton de confirmation (défaut : 'Supprimer') */
-function showConfirm(msg, onConfirm, confirmLabel = 'Supprimer') {
+function showConfirm(msg, onConfirm, confirmLabel = 'Supprimer', { showDeleteFiles = false } = {}) {
   pendingConfirm = onConfirm;
   document.getElementById('modal-msg').textContent = msg;
   document.getElementById('modal-confirm').textContent = confirmLabel;
+  const wrap = document.getElementById('modal-delete-files-wrap');
+  const cb   = document.getElementById('modal-delete-files');
+  wrap.style.display = showDeleteFiles ? '' : 'none';
+  cb.checked = false;
   document.getElementById('modal-overlay').classList.add('active');
 }
 
@@ -280,6 +284,7 @@ document.getElementById('btn-auto-grab').addEventListener('click', () => trigger
 
 // Cleaner toggle
 document.getElementById('cleaner-enabled').addEventListener('change', () => { autoSave(); });
+document.getElementById('clean-delete-files').addEventListener('change', () => { autoSave(); });
 // Bouton d'exécution manuelle du cleaner
 document.getElementById('cleaner-run-btn').addEventListener('click', runCleanerNow);
 
@@ -409,12 +414,15 @@ document.getElementById('history-content').addEventListener('click', e => {
  *  - Torrents actifs : toutes les 5 s, uniquement si l'onglet actifs est visible
  *  - Connexions LEDs : toutes les 30 s
  *  - Stats globales  : toutes les 60 s */
+let pollingStarted = false;
 function startPolling() {
+  if (pollingStarted) return;
+  pollingStarted = true;
   setInterval(() => {
     if (document.getElementById('sec-actifs')?.classList.contains('active')) loadActifs();
   }, 5000);
   setInterval(loadConnections, 30000);
-  setInterval(loadStats, 5000);
+  setInterval(loadStats, 60000);
   setInterval(() => loadAutoRefreshConfig(false), 60000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') loadStats();

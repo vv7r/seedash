@@ -243,18 +243,20 @@ async function loadActifs() {
 async function deleteTorrent(hash) {
   const name = torrentDataMap.get(hash) || hash;
   showConfirm('Supprimer "' + name + '" ?', async () => {
+    const df = document.getElementById('modal-delete-files').checked;
     actifsHashes = '';
-    await fetchT(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name), { method: 'DELETE', credentials: 'include' });
+    await fetchT(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name) + '&deleteFiles=' + df, { method: 'DELETE', credentials: 'include' });
     loadActifs(); loadStats();
-  });
+  }, 'Supprimer', { showDeleteFiles: true });
 }
 
 /** Suppression manuelle d'un torrent depuis le bouton ✕ du tableau actifs. */
 async function deleteManual(hash) {
   const name = torrentDataMap.get(hash) || hash;
   showConfirm('Supprimer ce torrent ?\n\n"' + name + '"', async () => {
+    const df = document.getElementById('modal-delete-files').checked;
     actifsHashes = '';
-    await fetchT(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name), { method: 'DELETE', credentials: 'include' });
+    await fetchT(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name) + '&deleteFiles=' + df, { method: 'DELETE', credentials: 'include' });
     loadActifs(); loadStats();
-  });
+  }, 'Supprimer', { showDeleteFiles: true });
 }
