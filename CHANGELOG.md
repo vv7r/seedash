@@ -11,6 +11,14 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.6.2] - 2026-03-23
+
+### Modifié
+- `rules.js` : bouton graphique déplacé de la colonne séparée vers inline à côté de chaque nom de torrent — supporte les entrées multi-torrents (ex : auto-clean avec 2+ suppressions)
+- `style.css` : alignement icône graphique + nom via flexbox (`display:flex; align-items:center; gap:4px`)
+
+---
+
 ## [1.6.1] - 2026-03-23
 
 ### Modifié
@@ -247,7 +255,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.6.1...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/vv7r/seedash/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/vv7r/seedash/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/vv7r/seedash/compare/v1.5.4...v1.6.0
 [1.5.4]: https://github.com/vv7r/seedash/compare/v1.5.3...v1.5.4

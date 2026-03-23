@@ -222,9 +222,8 @@ tr:hover td { background: var(--bg-hover); }
 /* width:1px + white-space:nowrap contraint la colonne suppression à sa taille minimale */
 .hist-table td.col-hist-del  { width:1px; white-space:nowrap; text-align:center; vertical-align:middle; }
 .hist-names { font-size:11px; color:var(--text2); margin-top:3px; }
-.hist-names > div { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.col-hist-chart { text-align:center; vertical-align:middle; width:1px; padding:0; }
-.btn-hist-chart { background:none; border:none; cursor:pointer; padding:0; opacity:0.5; transition:opacity 0.15s; display:flex; align-items:center; justify-content:center; color:var(--text2); }
+.hist-names > div { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:4px; }
+.btn-hist-chart { background:none; border:none; cursor:pointer; padding:0; opacity:0.5; transition:opacity 0.15s; display:inline-flex; align-items:center; flex-shrink:0; color:var(--text2); }
 .btn-hist-chart:hover { opacity:1; }
 .col-hist-date { white-space: nowrap; }
 .hist-date-day, .hist-date-time { display: block; }

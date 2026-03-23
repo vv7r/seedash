@@ -283,29 +283,27 @@ function renderHistory() {
                    :            `<span class="badge badge-amber">Clean</span>`;
     const result   = isGrab   ? `${e.count} torrent(s) ajouté(s)`
                    :            `${e.count} torrent(s) supprimé(s)`;
+    const chartSvg = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="15" x2="2" y2="3"/><line x1="2" y1="15" x2="16" y2="15"/><polyline points="4,12 7,8 10,10 15,4"/><circle cx="15" cy="4" r="1.2"/></svg>';
     const names = e.names?.length
       ? `<div class="hist-names">${e.names.map(n => {
           const label = he(typeof n === 'string' ? n : n.name);
           const url   = typeof n === 'object' && n.url ? n.url : null;
-          return `<div>${url ? `<a href="${he(url)}" target="_blank" rel="noopener" class="td-link">${label}</a>` : label}</div>`;
+          const hash  = typeof n === 'object' && n.hash ? n.hash : null;
+          const chartBtn = hash ? `<button class="btn-hist-chart" data-action="hist-chart" data-hash="${he(hash)}" data-name="${he(typeof n === 'object' ? n.name || '' : '')}" title="Voir le graphique">${chartSvg}</button> ` : '';
+          return `<div>${chartBtn}${url ? `<a href="${he(url)}" target="_blank" rel="noopener" class="td-link">${label}</a>` : label}</div>`;
         }).join('')}</div>` : '';
     const srcBadge = `<span class="badge badge-gray">${he(e.source)}</span>`;
-    const firstHash = e.names?.find(n => typeof n === 'object' && n.hash);
-    const chartBtn = firstHash
-      ? `<button class="btn-hist-chart" data-action="hist-chart" data-hash="${he(firstHash.hash)}" data-name="${he(firstHash.name || '')}" title="Voir le graphique"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="15" x2="2" y2="3"/><line x1="2" y1="15" x2="16" y2="15"/><polyline points="4,12 7,8 10,10 15,4"/><circle cx="15" cy="4" r="1.2"/></svg></button>`
-      : '';
     const dateB64  = btoa(e.date);
     return `<tr>
       <td class="col-hist-date">${fmtDateStack(e.date)}</td>
       <td class="col-hist-type">${badge}</td>
       <td class="col-hist-result">${result}${names}</td>
       <td class="col-hist-source">${srcBadge}</td>
-      <td class="col-hist-chart">${chartBtn}</td>
       <td class="col-hist-del"><button class="btn-del-x" data-action="del-hist" data-date="${dateB64}" title="Supprimer">✕</button></td>
     </tr>`;
   }).join('');
 
-  el.innerHTML = `<table class="hist-table"><thead><tr>${headers}<th></th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  el.innerHTML = `<table class="hist-table"><thead><tr>${headers}<th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 /** Supprime une entrée de l'historique via DELETE /api/history. */
