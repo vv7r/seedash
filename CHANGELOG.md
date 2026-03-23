@@ -11,6 +11,27 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.6.1] - 2026-03-23
+
+### Modifié
+- `style.css` : modal graphique adaptée au mode paysage mobile — `max-height: 90vh`, padding safe-area pour Dynamic Island, brush réduit à 35px
+- `charts.js` : canvas modal réduit à 200px en paysage (au lieu de 360px) ; re-dessin automatique lors d'un changement d'orientation
+- `style.css` : padding historique réduit sur mobile (6px au lieu de 12px) pour éviter le débordement à droite
+
+### Corrigé
+- `charts.js` : label « 23h 59min » affiché au lieu de « 24h » — seuil arrondi à ≥ 23h 55min
+- `style.css` : modal graphique dépassait l'écran en mobile portrait — ajout `max-height: 90vh` + `overflow-y: auto`
+- `style.css` : tableau historique coupé à droite sur mobile — ajout `overflow-x: auto` sur le conteneur
+- `style.css` : bouton agrandir le graphique masqué sur mobile — suppression de la règle `pointer: coarse`
+
+### Sécurité
+- `server.js` : `POST /api/change-password` — ajout limite max 72 caractères (aligné sur setup, requis par bcrypt)
+- `server.js` : `POST /api/grab` — validation du champ `name` (type string, trim, max 1024 caractères)
+- `server.js` : `POST /api/config/secrets` — validation longueur max sur clés API, tokens et credentials
+- `server.js` : `POST /api/setup` — ajout brute-force guard (même mécanisme que login)
+
+---
+
 ## [1.6.0] - 2026-03-23
 
 ### Ajouté
@@ -226,7 +247,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.6.0...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/vv7r/seedash/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/vv7r/seedash/compare/v1.5.4...v1.6.0
 [1.5.4]: https://github.com/vv7r/seedash/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/vv7r/seedash/compare/v1.5.2...v1.5.3

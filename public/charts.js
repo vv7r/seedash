@@ -214,7 +214,7 @@ async function renderUploadChart(hash, canvas) {
     const windowed = allPoints.filter(([t]) => t >= cutoff);
     const pts = windowed.length >= 2 ? windowed : allPoints;
     const spanMins = Math.max(1, Math.round((pts[pts.length-1][0] - pts[0][0]) / 60));
-    const label = spanMins >= 1440 ? '24h' : fmtWindow(spanMins);
+    const label = spanMins >= 1435 ? '24h' : fmtWindow(spanMins);
     const state = drawChartOnCanvas(canvas, downsamplePoints(pts, 600), 150, label);
     attachChartHover(canvas, state, ac.signal);
   } catch {
@@ -238,7 +238,8 @@ function renderModalChart() {
   if (chartModalHoverAC) { chartModalHoverAC.abort(); }
   chartModalHoverAC = new AbortController();
   const canvas = document.getElementById('chart-modal-canvas');
-  const state  = drawChartOnCanvas(canvas, downsamplePoints(sliced, 1200), 360);
+  const modalH = (window.innerHeight < 500 && window.innerWidth > window.innerHeight) ? 200 : 360;
+  const state  = drawChartOnCanvas(canvas, downsamplePoints(sliced, 1200), modalH);
   attachChartHover(canvas, state, chartModalHoverAC.signal);
   drawBrush();
 }
@@ -456,3 +457,10 @@ function closeChartModal() {
   if (chartModalHoverAC) { chartModalHoverAC.abort(); chartModalHoverAC = null; }
   if (brushCleanup) { brushCleanup(); brushCleanup = null; }
 }
+
+/** Re-dessine la modal graphique lors d'un changement d'orientation ou de taille. */
+window.addEventListener('resize', () => {
+  if (document.getElementById('chart-modal').classList.contains('open') && chartModalPoints && chartModalPoints.length >= 2) {
+    renderModalChart();
+  }
+});

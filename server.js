@@ -474,7 +474,8 @@ app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, async (req, res) => {
 
 // POST /api/grab
 app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
-  const { url, name, page_url: rawPageUrl, infohash, category, size, leechers, seeders } = req.body;
+  const { url, name: rawName, page_url: rawPageUrl, infohash, category, size, leechers, seeders } = req.body;
+  const name = (typeof rawName === 'string') ? rawName.trim().slice(0, 1024) : '';
   // Sanitize page_url : seuls http(s) sont autorisés (bloque javascript:, data:, etc.)
   const page_url = (typeof rawPageUrl === 'string' && /^https?:\/\//i.test(rawPageUrl)) ? rawPageUrl : '';
   if (!url) return res.status(400).json({ error: 'url requis' });
@@ -745,6 +746,8 @@ app.get(`${cfg.baseurl}/api/setup/status`, (_req, res) => {
 // POST /api/setup
 app.post(`${cfg.baseurl}/api/setup`, async (req, res) => {
   if (auth.isSetupComplete()) return res.status(403).json({ error: 'Setup déjà effectué' });
+  const ip = req.ip;
+  if (auth.checkBruteForce(ip)) return res.status(429).json({ error: 'Trop de tentatives, réessayez dans quelques minutes' });
   const { username, password } = req.body;
   const u = typeof username === 'string' ? username.trim() : '';
   const p = typeof password === 'string' ? password : '';
@@ -801,6 +804,7 @@ app.post(`${cfg.baseurl}/api/change-password`, auth.requireAuth, async (req, res
   const { current_password, new_password } = req.body;
   if (!current_password || !new_password) return res.status(400).json({ error: 'Champs manquants' });
   if (new_password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (min 8 caractères)' });
+  if (new_password.length > 72) return res.status(400).json({ error: 'Mot de passe trop long (max 72 caractères)' });
   const ok = await bcrypt.compare(current_password, cfg.auth.password_hash);
   if (!ok) return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
   cfg.auth.password_hash = await bcrypt.hash(new_password, 12);
@@ -835,6 +839,11 @@ app.post(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
   if (c411_url    && !isHttpUrl(c411_url))    return res.status(400).json({ error: 'c411_url invalide (doit commencer par http:// ou https://)' });
   if (qbit_url    && !isHttpUrl(qbit_url))    return res.status(400).json({ error: 'qbit_url invalide (doit commencer par http:// ou https://)' });
   if (ultracc_url && !isHttpUrl(ultracc_url)) return res.status(400).json({ error: 'ultracc_url invalide (doit commencer par http:// ou https://)' });
+  const MAX_SECRET_LEN = 4096;
+  if (c411_apikey   && c411_apikey.length   > MAX_SECRET_LEN) return res.status(400).json({ error: 'Clé API C411 trop longue' });
+  if (qbit_username && qbit_username.length > 256)            return res.status(400).json({ error: 'Nom d\'utilisateur qBittorrent trop long' });
+  if (qbit_password && qbit_password.length > 256)            return res.status(400).json({ error: 'Mot de passe qBittorrent trop long' });
+  if (ultracc_token && ultracc_token.length > MAX_SECRET_LEN) return res.status(400).json({ error: 'Token Ultra.cc trop long' });
   if (c411_url)      cfg.c411.url              = c411_url;
   if (c411_apikey)   cfg.c411.apikey           = c411_apikey;
   if (qbit_url)      cfg.qbittorrent.url        = qbit_url;
