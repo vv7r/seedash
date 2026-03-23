@@ -11,9 +11,10 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-## [1.6.0] - 2026-03-22
+## [1.6.0] - 2026-03-23
 
 ### Ajouté
+- **Option suppression des fichiers sur le disque** — checkbox dans la modale de suppression manuelle (torrents actifs) et toggle global dans les réglages Auto clean ; `deleteFiles` transmis à qBittorrent selon le choix utilisateur
 - **Persistance de l'historique d'upload** — les données de courbe d'upload sont conservées après suppression manuelle ou auto-clean (cap : 8640 points/hash ≈ 30 jours, 500 hashes max)
 - **Timeline brush** — sélection interactive de la plage temporelle sur les graphiques (remplace les boutons 1h/6h/24h/48h/7j/30j), drag des poignées, pan, double-clic/clic droit pour réinitialiser
 - **Graphique dans l'historique** — bouton SVG sur chaque entrée pour ouvrir la courbe d'upload d'un torrent supprimé
@@ -29,13 +30,23 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 - `actifs.js` / `rules.js` : flèches de tri unifiées sur tous les tableaux (système CSS `::after` avec `↕ ↑ ↓`)
 - `style.css` : `font-size: 12px` sur `.cell-seedtime`, `.cell-dl`, `.cell-up` ciblé sur `td` uniquement (ne s'applique plus aux `th`)
 - `lib/cleaner.js` : nouvelle fonction `deleteReason()` — retourne la raison de suppression pour le log
+- `lib/cleaner.js` : client qBittorrent dédupliqué — utilise `lib/qbit.js` via injection au lieu d'un client interne
 - `lib/grab.js` : log enrichi avec taille/leechers/seeders pour chaque torrent grabé
 - `server.js` : `pruneUploadHistory()` réécrit — cap à 500 hashes, ne purge que les inactifs triés par ancienneté
+- `app.js` : polling `loadStats` corrigé de 5s à 60s
 
 ### Supprimé
 - Boutons de plage temporelle (`btn-range`, `chart-range-btns`) — remplacés par le brush
 - Fonction `filterByRange()` dans `charts.js` — remplacée par `sliceByBrush()`
 - CSS des sélecteurs `th[data-action="sort-actifs"]` et `th[data-sort]` — remplacés par `.sortable`
+
+### Corrigé
+- `charts.js` : label « uploadés sur 24h » affichait toujours 24h même si le torrent avait moins de données — affiche désormais la durée réelle (ex : `2h 30min`)
+- `app.js` : `startPolling()` appelé plusieurs fois (login, setup, checkAuth) — ajout d'un garde `pollingStarted`
+
+### Sécurité
+- `server.js` : timing attack sur le login — `bcrypt.compare` exécuté systématiquement même si le username est incorrect
+- `server.js` / `lib/grab.js` : validation `page_url` — seuls les schémas `http(s)://` sont acceptés (bloque `javascript:`, `data:`, etc.)
 
 ---
 
