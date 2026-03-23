@@ -266,6 +266,21 @@ Le projet suit [Semantic Versioning](https://semver.org/lang/fr/) et [Keep a Cha
 - Séparateur date : tiret simple ` - ` (pas tiret cadratin `—`)
 - Date : format ISO `YYYY-MM-DD`
 
+### Messages de commit
+
+Structurer les messages de commit comme le CHANGELOG — sections `### Ajouté`, `### Modifié`, `### Corrigé`, `### Sécurité`, etc. avec un résumé en première ligne. Exemple :
+
+```
+feat(release): v1.6.0 — titre court
+
+### Ajouté
+- Feature A
+- Feature B
+
+### Corrigé
+- Fix X
+```
+
 ## Conventions
 
 - Messages d'interface en **français**
