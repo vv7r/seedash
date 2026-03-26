@@ -28,6 +28,7 @@ const NAMEMAP_PATH       = path.join(__dirname, 'logs', 'namemap.json');
 const CATMAP_PATH        = path.join(__dirname, 'logs', 'categorymap.json');
 const UPLOAD_HISTORY_PATH = path.join(__dirname, 'logs', 'upload-history.json');
 const TORRENT_LIST_PATH  = path.join(__dirname, 'logs', 'torrent-list.json');
+const EXCLUDED_PATH      = path.join(__dirname, 'logs', 'excluded.json');
 const TORRENT_LIST_MAX   = 500;
 
 // Clés appartenant à connections.json
@@ -78,6 +79,18 @@ function saveCategoryMap() {
     fs.writeFileSync(tmp, JSON.stringify(categoryMap, null, 2));
     fs.renameSync(tmp, CATMAP_PATH);
   } catch(e) { console.error('[categorymap]', e.message); }
+}
+
+// Hashes exclus de l'auto-clean (protégés par l'utilisateur)
+let excludedHashes = {};
+try { excludedHashes = JSON.parse(fs.readFileSync(EXCLUDED_PATH)); } catch {}
+
+function saveExcluded() {
+  try {
+    const tmp = EXCLUDED_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(excludedHashes, null, 2));
+    fs.renameSync(tmp, EXCLUDED_PATH);
+  } catch(e) { console.error('[excluded]', e.message); }
 }
 
 // Historique d'upload par hash : { hash: [[timestamp_s, cumul_bytes], ...] }
@@ -463,6 +476,7 @@ app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, async (req, res) => {
         completion_on:    t.completion_on,
         category:         categoryMap[hash] || topCatByHash[hash] || '',
         upload_condition,
+        excluded:         !!excludedHashes[hash],
       };
     });
     res.json({ torrents: list });
@@ -519,11 +533,26 @@ app.delete(`${cfg.baseurl}/api/torrents/:hash`, auth.requireAuth, async (req, re
     const lhash = hash.toLowerCase();
     if (nameMap[lhash]) { delete nameMap[lhash]; saveNameMap(); }
     if (categoryMap[lhash]) { delete categoryMap[lhash]; saveCategoryMap(); }
+    if (excludedHashes[lhash]) { delete excludedHashes[lhash]; saveExcluded(); }
     appendHistory('delete', 1, 'manuel', [{ name, hash: lhash, url: `${(cfg.c411?.url || '').replace('/api/torznab', '') || 'https://c411.org'}/torrents/${hash}` }]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'Erreur serveur interne' });
   }
+});
+
+// POST /api/torrents/:hash/exclude — toggle protection auto-clean
+app.post(`${cfg.baseurl}/api/torrents/:hash/exclude`, auth.requireAuth, (req, res) => {
+  const { hash } = req.params;
+  if (!/^[a-f0-9]{40}$/i.test(hash)) return res.status(400).json({ error: 'Hash invalide' });
+  const lhash = hash.toLowerCase();
+  if (excludedHashes[lhash]) {
+    delete excludedHashes[lhash];
+  } else {
+    excludedHashes[lhash] = true;
+  }
+  saveExcluded();
+  res.json({ excluded: !!excludedHashes[lhash] });
 });
 
 // GET /api/upload-history/:hash
@@ -940,6 +969,12 @@ async function pruneNameMap() {
       if (catRemoved  > 0) console.log(`[categorymap] ${catRemoved} entrée(s) obsolète(s) supprimée(s)`);
       if (catBackfilled > 0) console.log(`[categorymap] ${catBackfilled} entrée(s) backfillée(s) depuis topCache`);
     }
+    const exclBefore = Object.keys(excludedHashes).length;
+    for (const h of Object.keys(excludedHashes)) {
+      if (!activeHashes.has(h)) delete excludedHashes[h];
+    }
+    const exclRemoved = exclBefore - Object.keys(excludedHashes).length;
+    if (exclRemoved > 0) { saveExcluded(); console.log(`[excluded] ${exclRemoved} entrée(s) obsolète(s) supprimée(s)`); }
     pruneUploadHistory(activeHashes);
   } catch(e) {
     console.log('[namemap] purge ignorée (qBittorrent inaccessible)');
@@ -975,13 +1010,15 @@ app.use((err, req, res, next) => {
 cleaner.setRunCompleteCallback((st) => {
   saveCfg();
   if (st.last_deleted_hashes?.length) {
-    let nameMapDirty = false, catMapDirty = false;
+    let nameMapDirty = false, catMapDirty = false, excludedDirty = false;
     for (const h of st.last_deleted_hashes) {
-      if (nameMap[h])        { delete nameMap[h];        nameMapDirty = true; }
-      if (categoryMap[h])    { delete categoryMap[h];    catMapDirty  = true; }
+      if (nameMap[h])        { delete nameMap[h];        nameMapDirty  = true; }
+      if (categoryMap[h])    { delete categoryMap[h];    catMapDirty   = true; }
+      if (excludedHashes[h]) { delete excludedHashes[h]; excludedDirty = true; }
     }
-    if (nameMapDirty) saveNameMap();
-    if (catMapDirty)  saveCategoryMap();
+    if (nameMapDirty)  saveNameMap();
+    if (catMapDirty)   saveCategoryMap();
+    if (excludedDirty) saveExcluded();
   }
   if (st.last_deleted_count > 0) {
     appendHistory('clean', st.last_deleted_count, st.last_run_type, st.last_deleted_names || []);

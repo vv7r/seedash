@@ -361,9 +361,10 @@ document.getElementById('btn-toggle-all-charts').addEventListener('click', () =>
 
 // Clic dans le tableau actifs : boutons d'action (supprimer, agrandir chart) ou clic ligne → toggle graph inline
 document.getElementById('actifs-body').addEventListener('click', e => {
+  const badge = e.target.closest('[data-action="toggle-exclude"]');
+  if (badge) { toggleExclude(badge.dataset.hash); return; }
   const btn = e.target.closest('button[data-action]');
   if (btn) {
-    if (btn.dataset.action === 'delete')        deleteTorrent(btn.dataset.hash);
     if (btn.dataset.action === 'delete-manual') deleteManual(btn.dataset.hash);
     if (btn.dataset.action === 'expand-chart')  openChartModal(btn.dataset.hash);
     return;

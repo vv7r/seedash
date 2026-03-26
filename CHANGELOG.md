@@ -11,6 +11,24 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.0] - 2026-03-26
+
+### Ajouté
+- **Protection de torrents (exclusion auto-clean)** — clic sur le badge de statut pour basculer un torrent en mode "protégé" (bleu) ; le torrent exclu n'est jamais supprimé par l'auto-clean
+- `server.js` : route `POST /api/torrents/:hash/exclude` — toggle protection avec validation hash regex, persisté dans `logs/excluded.json` (écriture atomique)
+- `server.js` : champ `excluded` ajouté dans `GET /api/torrents` pour chaque torrent
+- `lib/cleaner.js` : lecture de `excluded.json` à chaque `runClean()`, les torrents protégés sont filtrés avant évaluation des règles ; log du nombre de torrents protégés ignorés
+- `actifs.js` : badge 3 états cliquable — "protégé" (bleu), "prêt à suppr." (ambre), "conservation" (gris) avec `data-action="toggle-exclude"`
+- `style.css` : classe `.badge-clickable` (cursor pointer + hover brightness)
+
+### Modifié
+- `server.js` : nettoyage automatique des hashes exclus lors de la suppression manuelle, après auto-clean (callback `setRunCompleteCallback`), et au démarrage (`pruneNameMap`)
+
+### Supprimé
+- `actifs.js` : fonction `deleteTorrent()` — code mort remplacé par `deleteManual()` ; branche `data-action="delete"` retirée de `app.js`
+
+---
+
 ## [1.6.2] - 2026-03-23
 
 ### Modifié
@@ -255,7 +273,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.6.2...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/vv7r/seedash/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/vv7r/seedash/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/vv7r/seedash/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/vv7r/seedash/compare/v1.5.4...v1.6.0

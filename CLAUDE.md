@@ -26,7 +26,7 @@ Application Node.js/Express. Pas de framework frontend — vanilla JS/CSS sépar
 - **`stats.js`** — LEDs de connexion, `loadConnections`, `updateQbitStats`, `loadStats`
 - **`charts.js`** — courbe upload par torrent (canvas 2D), modal avec timeline brush, couleurs via CSS variables
 - **`top.js`** — top leechers, tri, sélection, auto-refresh countdown, `triggerAutoGrab`
-- **`actifs.js`** — torrents actifs, badge "prêt à supprimer", `insertChartRow`
+- **`actifs.js`** — torrents actifs, badge 3 états (protégé/prêt à suppr./conservation), `insertChartRow`, `toggleExclude`
 - **`rules.js`** — règles auto-grab/clean, historique, secrets, countdown cleaner
 - **`app.js`** — globals partagés, auth, tabs, event listeners, `startPolling`, init
 - **`index.html`** — HTML structurel pur (aucun style ni script inline)
@@ -206,12 +206,27 @@ Pattern event delegation à suivre pour les éléments dynamiques :
 - Top leechers : auto-refresh visuel (appel `loadTop()`), le grab réel se fait côté serveur
 - Connexions LEDs : `setInterval` toutes les 30s — silencieux si précédent état était OK (pas de flash orange)
 
-### Badge "prêt à supprimer" (torrents actifs)
+### Badge de statut (torrents actifs)
+
+Le badge de la colonne "Statut" a 3 états, cliquable pour basculer la protection :
+- **"protégé"** (bleu) — torrent exclu de l'auto-clean, persisté dans `logs/excluded.json`
+- **"prêt à suppr."** (ambre) — torrent éligible à la suppression selon les règles auto-clean
+- **"conservation"** (gris) — torrent non éligible (conditions non remplies ou auto-clean désactivé)
+
+Clic sur le badge → `toggleExclude(hash)` → `POST /api/torrents/:hash/exclude` (toggle) → rebuild actifs.
 
 `actifsCalc(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn)` calcule `canDel` en miroir de `cleaner.js` :
 - `canDel = cleanerEnabled && anyOn && ratioOk && timeOk && uploadMet` — logique ET sur les conditions actives
-- `cleanerEnabled` : variable module-level mise à jour par `loadCleanerStatus()` — le badge n'apparaît jamais si l'auto clean est désactivé
+- `cleanerEnabled` : variable module-level mise à jour par `loadCleanerStatus()` — le badge "prêt à suppr." n'apparaît jamais si l'auto clean est désactivé
 - `upload_condition` (booléen) est calculé côté serveur dans `GET /api/torrents` et transmis avec chaque torrent ; l'historique d'upload n'est pas accessible côté client
+
+### Exclusion de torrents (protection auto-clean)
+
+- **Persistance** : `logs/excluded.json` — objet `{ hash: true }`, écriture atomique (tmp + rename)
+- **API** : `POST /api/torrents/:hash/exclude` — toggle, validation regex `^[a-f0-9]{40}$`
+- **Enrichissement** : `GET /api/torrents` retourne `excluded: bool` par torrent
+- **Nettoyage automatique** : les hashes exclus sont purgés lors de la suppression manuelle, après auto-clean (callback), et au démarrage (`pruneNameMap`)
+- **cleaner.js** : relit `excluded.json` à chaque `runClean()`, filtre les torrents protégés avant `shouldDelete()`
 
 ### DOM — deux modes de mise à jour (loadActifs)
 
