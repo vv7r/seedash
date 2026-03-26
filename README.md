@@ -25,7 +25,7 @@ Dashboard Node.js/Express pour gérer une seedbox Ultra.cc : tracker C411 (Torzn
 - **Top leechers** — top des torrents C411 par leechers, filtrage par catégorie, tri par colonne, grab direct vers qBittorrent
 - **Torrents actifs** — suivi ratio/âge/upload en temps réel, courbe d'upload avec timeline brush interactive, suppression manuelle
 - **Stats globales** — torrents actifs, ratio moyen, vitesses DL/UP, espace disque, trafic réseau mensuel
-- **Auto clean** — suppression planifiée des torrents selon des règles configurables (ratio, âge, upload minimum), option suppression des fichiers du disque
+- **Auto clean** — suppression planifiée des torrents selon des règles configurables (ratio, âge, upload minimum), option suppression des fichiers du disque, protection individuelle de torrents
 - **Auto grab** — grab automatique périodique des meilleurs torrents selon des limites configurables
 - **Historique** — journal des grabs et suppressions automatiques/manuels, courbe d'upload persistée après suppression, suppression individuelle d'entrées
 - **LEDs de statut** — indicateurs de connexion C411 / qBittorrent / Ultra.cc en temps réel
@@ -356,6 +356,7 @@ Paramètres `GET /api/top-leechers` :
 | `GET` | `/api/torrents` | Liste des torrents actifs qBittorrent avec résolution nom C411 |
 | `POST` | `/api/grab` | Ajoute un torrent `{url, name, infohash}` (magnet → qBittorrent) |
 | `DELETE` | `/api/torrents/:hash?deleteFiles=bool` | Supprime un torrent (fichiers du disque optionnel) |
+| `POST` | `/api/torrents/:hash/exclude` | Toggle protection auto-clean (exclu ↔ normal) |
 | `GET` | `/api/upload-history/:hash` | Historique d'upload (points de données) pour un torrent |
 
 ### Règles de configuration
@@ -466,6 +467,7 @@ seedash/
     ├── categorymap.json    — correspondance hash qBittorrent → catégorie C411
     ├── torrent-list.json   — liste cumulative des torrents grabbés (créé au premier grab)
     ├── upload-history.json — courbe d'upload par torrent (points horodatés)
+    ├── excluded.json       — hashes exclus de l'auto-clean (protection utilisateur)
     └── auto.log            — journal des opérations automatiques (cleaner + grab)
 ```
 

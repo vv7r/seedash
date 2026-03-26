@@ -148,7 +148,7 @@ function actifsRowHTML(t, ratioMin, seedMin, ratioOn, ageOn, uploadOn) {
     <td class="cell-seedtime${timeOk ? ' time-ok' : ''}" title="Seedtime : ${fmtSecs(t.seeding_time)}">${fmtAge(t.added_on)}</td>
     <td class="cell-dl">${fmtSpeed(t.dlspeed)}</td>
     <td class="cell-up">${fmtSpeed(t.upspeed)}</td>
-    <td class="cell-label">${canDel ? `<span class="badge badge-amber">prêt à suppr.</span>` : `<span class="badge badge-gray">conservation</span>`}</td>
+    <td class="cell-label">${t.excluded ? `<span class="badge badge-blue badge-clickable" data-action="toggle-exclude" data-hash="${t.hash}">protégé</span>` : canDel ? `<span class="badge badge-amber badge-clickable" data-action="toggle-exclude" data-hash="${t.hash}">prêt à suppr.</span>` : `<span class="badge badge-gray badge-clickable" data-action="toggle-exclude" data-hash="${t.hash}">conservation</span>`}</td>
     <td class="cell-action"><span><button class="btn-del-x" data-action="delete-manual" data-hash="${t.hash}">✕</button></span></td>
   </tr>`;
 }
@@ -168,9 +168,11 @@ function actifsUpdateRow(row, t, ratioMin, seedMin, ratioOn, ageOn, uploadOn) {
   st.title = 'Seedtime : ' + fmtSecs(t.seeding_time);
   row.querySelector('.cell-dl').textContent = fmtSpeed(t.dlspeed);
   row.querySelector('.cell-up').textContent = fmtSpeed(t.upspeed);
-  row.querySelector('.cell-label').innerHTML = canDel
-    ? `<span class="badge badge-amber">prêt à suppr.</span>`
-    : `<span class="badge badge-gray">conservation</span>`;
+  row.querySelector('.cell-label').innerHTML = t.excluded
+    ? `<span class="badge badge-blue badge-clickable" data-action="toggle-exclude" data-hash="${t.hash}">protégé</span>`
+    : canDel
+      ? `<span class="badge badge-amber badge-clickable" data-action="toggle-exclude" data-hash="${t.hash}">prêt à suppr.</span>`
+      : `<span class="badge badge-gray badge-clickable" data-action="toggle-exclude" data-hash="${t.hash}">conservation</span>`;
   torrentDataMap.set(t.hash, t.name);
   row.querySelector('.cell-action').innerHTML =
     `<span><button class="btn-del-x" data-action="delete-manual" data-hash="${t.hash}">✕</button></span>`;
@@ -239,15 +241,18 @@ async function loadActifs() {
   }
 }
 
-/** Supprime un torrent après confirmation via la modale générique. */
-async function deleteTorrent(hash) {
-  const name = torrentDataMap.get(hash) || hash;
-  showConfirm('Supprimer "' + name + '" ?', async () => {
-    const df = document.getElementById('modal-delete-files').checked;
+/** Toggle protection auto-clean pour un torrent. */
+async function toggleExclude(hash) {
+  try {
+    const r = await fetchT(BASE + '/api/torrents/' + hash + '/exclude', {
+      method: 'POST', credentials: 'include'
+    });
+    await r.json();
     actifsHashes = '';
-    await fetchT(BASE + '/api/torrents/' + hash + '?name=' + encodeURIComponent(name) + '&deleteFiles=' + df, { method: 'DELETE', credentials: 'include' });
-    loadActifs(); loadStats();
-  }, 'Supprimer', { showDeleteFiles: true });
+    loadActifs();
+  } catch {
+    toast('Erreur', 'error');
+  }
 }
 
 /** Suppression manuelle d'un torrent depuis le bouton ✕ du tableau actifs. */

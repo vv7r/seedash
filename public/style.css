@@ -209,6 +209,8 @@ tr:hover td { background: var(--bg-hover); }
 .badge-blue  { background: var(--blue-bg);  color: var(--blue-text); }
 .badge-amber { background: var(--amber-bg); color: var(--amber-text); }
 .badge-gray  { background: var(--gray-bg);  color: var(--gray-text); }
+.badge-clickable { cursor: pointer; }
+.badge-clickable:hover { filter: brightness(0.92); }
 
 /* === HISTORIQUE === */
 .hist-table { width:100%; border-collapse:collapse; font-size:13px; }

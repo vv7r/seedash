@@ -2,8 +2,8 @@
   "port": 44962,
   "baseurl": "/seedash",
   "auto_grab": {
-    "enabled": true,
-    "last_run": "2026-03-23T00:07:21.783Z",
+    "enabled": false,
+    "last_run": "2026-03-26T22:08:02.192Z",
     "last_grab_count": 0,
     "rules": {
       "grab_limit_per_day": 20,
@@ -23,8 +23,8 @@
     }
   },
   "auto_clean": {
-    "enabled": true,
-    "last_run": "2026-03-23T00:07:11.526Z",
+    "enabled": false,
+    "last_run": "2026-03-26T22:07:51.948Z",
     "last_deleted_count": 0,
     "last_run_type": "auto",
     "rules": {
@@ -45,8 +45,8 @@
     "delete_files": false
   },
   "timer": {
-    "enabled": true,
+    "enabled": false,
     "interval_hours": 1,
-    "last_run": "2026-03-23T00:07:11.519Z"
+    "last_run": "2026-03-26T22:07:51.943Z"
   }
 }
