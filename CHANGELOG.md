@@ -11,6 +11,13 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.1] - 2026-03-31
+
+### Sécurité
+- Mise à jour de `path-to-regexp` 0.1.12 → 0.1.13 (CVE-2026-4867) — dépendance transitive via Express ; les routes avec 3+ paramètres dans un même segment étaient vulnérables à un backtracking catastrophique (ReDoS)
+
+---
+
 ## [1.7.0] - 2026-03-26
 
 ### Ajouté
@@ -273,7 +280,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.0...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/vv7r/seedash/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/vv7r/seedash/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/vv7r/seedash/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/vv7r/seedash/compare/v1.6.0...v1.6.1
