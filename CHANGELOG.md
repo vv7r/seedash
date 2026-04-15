@@ -11,6 +11,13 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.3] - 2026-04-15
+
+### Sécurité
+- Mise à jour de `follow-redirects` 1.15.11 → 1.16.0 (GHSA-r4q5-vmmm-2653) — dépendance transitive via axios ; fuite des headers d'authentification custom lors de redirections cross-domain
+
+---
+
 ## [1.7.2] - 2026-04-15
 
 ### Sécurité
@@ -287,7 +294,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.2...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.3...HEAD
+[1.7.3]: https://github.com/vv7r/seedash/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/vv7r/seedash/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/vv7r/seedash/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/vv7r/seedash/compare/v1.6.2...v1.7.0
