@@ -11,6 +11,13 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.2] - 2026-04-15
+
+### Sécurité
+- Mise à jour de `axios` 1.13.6 → 1.15.0 — deux correctifs de sécurité : bypass de normalisation `no_proxy` pouvant mener à du SSRF, et injection d'en-têtes permettant l'exfiltration de métadonnées cloud
+
+---
+
 ## [1.7.1] - 2026-03-31
 
 ### Sécurité
@@ -280,7 +287,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.1...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/vv7r/seedash/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/vv7r/seedash/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/vv7r/seedash/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/vv7r/seedash/compare/v1.6.1...v1.6.2
