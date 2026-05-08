@@ -11,6 +11,14 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.4] - 2026-05-08
+
+### Sécurité
+- Mise à jour de `axios` 1.15.0 → 1.16.0 — correctifs multiples (CSRF, prototype pollution, header injection, SSRF, et autres CVEs)
+- Mise à jour de `fast-xml-builder` → 1.2.0 via `fast-xml-parser` 5.7.3 (GHSA-5wm8-gmm8-39j9, GHSA-45c6-75p6-83cc)
+
+---
+
 ## [1.7.3] - 2026-04-15
 
 ### Sécurité
@@ -294,7 +302,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.3...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.4...HEAD
+[1.7.4]: https://github.com/vv7r/seedash/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/vv7r/seedash/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/vv7r/seedash/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/vv7r/seedash/compare/v1.7.0...v1.7.1
