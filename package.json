@@ -1,6 +1,6 @@
 {
   "name": "seedash",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "Dashboard de gestion seedbox C411 + qBittorrent",
   "license": "MIT",
   "main": "server.js",
@@ -8,6 +8,9 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test tests/*.test.js"
+  },
+  "overrides": {
+    "qs": "^6.15.2"
   },
   "dependencies": {
     "axios": "^1.16.0",

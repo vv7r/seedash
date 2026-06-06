@@ -116,17 +116,27 @@ sep "Détection des connexions"
 
 # ── Ultra.cc : installation du script Ultra API si absent ────────────────────
 UC_DB="$HOME/scripts/Ultra-API/auth_tokens.db"
+UC_DIR="$HOME/scripts/Ultra-API"
 if [ ! -f "$UC_DB" ]; then
   info "Installation du script Ultra API..."
   echo "1" | bash <(wget -qO- https://scripts.ultra.cc/util-v2/Ultra-API/main.sh)
   ok "Script Ultra API installé"
+fi
+# Démarrer le screen si l'API est installée mais le screen est absent
+if [ -f "$UC_DB" ] && ! screen -ls 2>/dev/null | grep -q "UltraAPIpoints"; then
+  info "Screen Ultra API absent — démarrage..."
+  screen -dmS UltraAPIpoints bash -c "cd '$UC_DIR' && ./bin/python stats_request.py"
+  sleep 1
+  screen -ls 2>/dev/null | grep -q "UltraAPIpoints" \
+    && ok "Screen Ultra API démarré" \
+    || warn "Impossible de démarrer le screen Ultra API — lancez manuellement : cd $UC_DIR && screen -dmS UltraAPIpoints ./bin/python stats_request.py"
 fi
 
 # ── Ultra.cc : URL depuis hostname ───────────────────────────────────────────
 UC_URL=""
 DETECTED_HOST=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
 if echo "$DETECTED_HOST" | grep -qi "usbx.me"; then
-  UC_URL="https://${USER}.${DETECTED_HOST}/ultra-api/total-stats"
+  UC_URL="https://${USER}.${DETECTED_HOST}/ultra-api/total_stats"
   ok "URL Ultra.cc : $UC_URL"
 fi
 
