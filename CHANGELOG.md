@@ -11,6 +11,17 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.5] - 2026-06-06
+
+### Corrigé
+- Correction de `total-stats` → `total_stats` dans `install.sh` (endpoint Ultra.cc invalide)
+- Démarrage automatique du screen `UltraAPIpoints` dans `install.sh` si l'Ultra API est installée mais stoppée
+
+### Sécurité
+- Mise à jour forcée de `qs` 6.14.2 → 6.15.2 via `overrides` (GHSA-q8mj-m7cp-5q26 — DoS sur `qs.stringify` avec `arrayFormat: 'comma'`)
+
+---
+
 ## [1.7.4] - 2026-05-08
 
 ### Sécurité
@@ -302,7 +313,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.4...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.5...HEAD
+[1.7.5]: https://github.com/vv7r/seedash/compare/v1.7.4...v1.7.5
 [1.7.4]: https://github.com/vv7r/seedash/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/vv7r/seedash/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/vv7r/seedash/compare/v1.7.1...v1.7.2
