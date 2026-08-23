@@ -132,19 +132,36 @@ if [ -f "$UC_DB" ] && ! screen -ls 2>/dev/null | grep -q "UltraAPIpoints"; then
     || warn "Impossible de démarrer le screen Ultra API — lancez manuellement : cd $UC_DIR && screen -dmS UltraAPIpoints ./bin/python stats_request.py"
 fi
 
-# ── Ultra.cc : URL depuis hostname ───────────────────────────────────────────
-UC_URL=""
-DETECTED_HOST=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
-if echo "$DETECTED_HOST" | grep -qi "usbx.me"; then
-  UC_URL="https://${USER}.${DETECTED_HOST}/ultra-api/total_stats"
-  ok "URL Ultra.cc : $UC_URL"
-fi
-
 # ── Ultra.cc : token depuis SQLite ───────────────────────────────────────────
 UC_TOKEN=""
 if [ -f "$UC_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
   UC_TOKEN=$(sqlite3 "$UC_DB" "SELECT auth_token FROM tokens LIMIT 1;" 2>/dev/null | tr -d '[:space:]' || true)
   [ -n "$UC_TOKEN" ] && ok "Token Ultra.cc récupéré"
+fi
+
+# ── Ultra.cc : URL depuis hostname ───────────────────────────────────────────
+# Le nom de la route varie selon la version du script Ultra-API : la doc annonce
+# `total_stats`, mais les installations existantes servent `total-stats`.
+# On interroge le service plutôt que de deviner.
+UC_URL=""
+DETECTED_HOST=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
+if echo "$DETECTED_HOST" | grep -qi "usbx.me"; then
+  UC_BASE="https://${USER}.${DETECTED_HOST}/ultra-api"
+  for candidate in total-stats total_stats; do
+    CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+      -H "Authorization: Bearer ${UC_TOKEN}" "${UC_BASE}/${candidate}" 2>/dev/null || echo "000")
+    if [ "$CODE" = "200" ]; then
+      UC_URL="${UC_BASE}/${candidate}"
+      ok "URL Ultra.cc : $UC_URL"
+      break
+    fi
+    info "Route /${candidate} → HTTP ${CODE}"
+  done
+  if [ -z "$UC_URL" ]; then
+    UC_URL="${UC_BASE}/total-stats"
+    warn "Aucune route n'a répondu 200 — valeur par défaut : $UC_URL"
+    warn "Vérifiez que le screen UltraAPIpoints tourne, puis corrigez l'URL dans Configuration → Connexions & API"
+  fi
 fi
 
 # ── qBittorrent : port + username depuis le fichier de config ────────────────
