@@ -9,6 +9,9 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Modifié
+- Mise à jour des dépendances dans leur plage semver : `express` 4.22.1 → 4.22.2, `fast-xml-parser` 5.7.3 → 5.11.0
+
 ---
 
 ## [1.7.6] - 2026-08-23
