@@ -122,14 +122,43 @@ if [ ! -f "$UC_DB" ]; then
   echo "1" | bash <(wget -qO- https://scripts.ultra.cc/util-v2/Ultra-API/main.sh)
   ok "Script Ultra API installé"
 fi
-# Démarrer le screen si l'API est installée mais le screen est absent
-if [ -f "$UC_DB" ] && ! screen -ls 2>/dev/null | grep -q "UltraAPIpoints"; then
-  info "Screen Ultra API absent — démarrage..."
-  screen -dmS UltraAPIpoints bash -c "cd '$UC_DIR' && ./bin/python stats_request.py"
-  sleep 1
-  screen -ls 2>/dev/null | grep -q "UltraAPIpoints" \
-    && ok "Screen Ultra API démarré" \
-    || warn "Impossible de démarrer le screen Ultra API — lancez manuellement : cd $UC_DIR && screen -dmS UltraAPIpoints ./bin/python stats_request.py"
+# Confier le service Ultra API à PM2 plutôt qu'à un screen : un screen ne
+# redémarre pas le process après un crash ni après un reboot, ce qui laisse le
+# service à l'arrêt sans que rien ne le signale.
+if [ -f "$UC_DB" ] && ! pm2 describe ultra-api >/dev/null 2>&1; then
+  info "Service Ultra API non géré par PM2 — configuration..."
+  # Chemin canonique obligatoire : sur Ultra.cc, $HOME est un lien symbolique
+  # vers un volume numéroté propre au compte. Traversé via le lien, Python ne
+  # reconnaît plus son venv et retombe sur les paquets système, d'où un
+  # ModuleNotFoundError sur flask. readlink -f résout le volume réel quel qu'il
+  # soit — ne jamais coder un chemin de volume en dur.
+  UC_REAL="$(readlink -f "$UC_DIR")"
+  if [ -x "$UC_REAL/bin/python" ]; then
+    cat > "$UC_REAL/ecosystem.config.js" <<PM2EOF
+module.exports = {
+  apps: [{
+    name: 'ultra-api',
+    script: 'stats_request.py',
+    interpreter: '$UC_REAL/bin/python',
+    cwd: '$UC_REAL',
+    log_date_format: 'DD-MM-YYYY HH:mm:ss'
+  }]
+};
+PM2EOF
+    pm2 start "$UC_REAL/ecosystem.config.js" >/dev/null 2>&1 \
+      && { pm2 save --force >/dev/null 2>&1; ok "Service Ultra API démarré via PM2"; } \
+      || warn "Échec du démarrage PM2 — vérifiez : pm2 logs ultra-api"
+  else
+    warn "Interpréteur $UC_REAL/bin/python introuvable — service Ultra API non démarré"
+  fi
+fi
+# Le venv du script Ultra API est construit pour la version de Python présente à
+# l'installation ; une mise à jour du Python système le rend muet (paquets sous
+# lib/pythonX.Y devenus invisibles). On le signale plutôt que de laisser
+# l'utilisateur face à un 502 sans explication.
+if [ -x "$UC_DIR/bin/python" ] && ! "$UC_DIR/bin/python" -c "import flask" >/dev/null 2>&1; then
+  warn "Le venv Ultra API ne trouve pas flask — Python système probablement mis à jour depuis l'installation"
+  warn "Réparation : cd $UC_DIR && python3 -m venv . && ./bin/pip install flask flask-limiter requests"
 fi
 
 # ── Ultra.cc : token depuis SQLite ───────────────────────────────────────────
@@ -160,7 +189,7 @@ if echo "$DETECTED_HOST" | grep -qi "usbx.me"; then
   if [ -z "$UC_URL" ]; then
     UC_URL="${UC_BASE}/total-stats"
     warn "Aucune route n'a répondu 200 — valeur par défaut : $UC_URL"
-    warn "Vérifiez que le screen UltraAPIpoints tourne, puis corrigez l'URL dans Configuration → Connexions & API"
+    warn "Vérifiez que le service tourne (pm2 status ultra-api), puis corrigez l'URL dans Configuration → Connexions & API"
   fi
 fi
 

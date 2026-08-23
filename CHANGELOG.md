@@ -10,6 +10,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 ## [Non publié]
 
 ### Corrigé
+- `install.sh` : le service Ultra-API est confié à PM2 au lieu d'un `screen`, qui ne survivait ni à un crash ni à un redémarrage — le service pouvait rester à l'arrêt des semaines sans que rien ne le signale. L'interpréteur est référencé par son chemin canonique (`readlink -f`) : sur Ultra.cc, `$HOME` est un lien symbolique vers un volume numéroté propre au compte et, traversé via ce lien, Python ne reconnaît plus son venv et échoue sur `ModuleNotFoundError: flask`
+- `install.sh` : avertissement explicite si le venv Ultra-API ne trouve plus `flask`, cas typique d'une mise à jour du Python système qui rend les paquets invisibles
 - `install.sh` : la route Ultra-API est désormais détectée en interrogeant le service (`total-stats` puis `total_stats`) au lieu d'être codée en dur — la doc et les installations réelles divergent selon la version du script. Annule la substitution erronée introduite en 1.7.5
 - `lib/ultracc.js` : message dédié pour les 502/503 renvoyant vers le screen `UltraAPIpoints`
 - `lib/ultracc.js` : le message « anti-429 » masquait la véritable cause d'une panne persistante (URL invalide, token expiré, service arrêté). La dernière erreur réelle est désormais mémorisée et relayée, avec le délai avant le prochain essai
