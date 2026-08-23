@@ -9,6 +9,10 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Corrigé
+- `lib/ultracc.js` : le message « anti-429 » masquait la véritable cause d'une panne persistante (URL invalide, token expiré, service arrêté). La dernière erreur réelle est désormais mémorisée et relayée, avec le délai avant le prochain essai
+- `lib/ultracc.js` : une réponse HTTP 200 sans champ `service_stats_info` (page d'erreur du proxy, changement de format) n'est plus mise en cache silencieusement — elle lève une erreur listant les clés reçues
+
 ### Modifié
 - Mise à jour des dépendances dans leur plage semver : `express` 4.22.1 → 4.22.2, `fast-xml-parser` 5.7.3 → 5.11.0
 
