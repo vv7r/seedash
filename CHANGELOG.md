@@ -11,6 +11,15 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.6] - 2026-08-23
+
+### Sécurité
+- Mise à jour `axios` 1.16.0 → 1.19.0 — correctifs multiples (GHSA-gcfj-64vw-6mp9 high, et 8 autres CVEs medium)
+- `form-data` mis à jour → 4.0.6 via axios (GHSA-hmw2-7cc7-3qxx)
+- `body-parser` forcé → 1.20.6 via `overrides` (GHSA-v422-hmwv-36x6)
+
+---
+
 ## [1.7.5] - 2026-06-06
 
 ### Corrigé
@@ -313,7 +322,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.5...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.6...HEAD
+[1.7.6]: https://github.com/vv7r/seedash/compare/v1.7.5...v1.7.6
 [1.7.5]: https://github.com/vv7r/seedash/compare/v1.7.4...v1.7.5
 [1.7.4]: https://github.com/vv7r/seedash/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/vv7r/seedash/compare/v1.7.2...v1.7.3
