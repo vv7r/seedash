@@ -10,6 +10,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 ## [Non publié]
 
 ### Corrigé
+- `install.sh` : la route Ultra-API est désormais détectée en interrogeant le service (`total-stats` puis `total_stats`) au lieu d'être codée en dur — la doc et les installations réelles divergent selon la version du script. Annule la substitution erronée introduite en 1.7.5
+- `lib/ultracc.js` : message dédié pour les 502/503 renvoyant vers le screen `UltraAPIpoints`
 - `lib/ultracc.js` : le message « anti-429 » masquait la véritable cause d'une panne persistante (URL invalide, token expiré, service arrêté). La dernière erreur réelle est désormais mémorisée et relayée, avec le délai avant le prochain essai
 - `lib/ultracc.js` : une réponse HTTP 200 sans champ `service_stats_info` (page d'erreur du proxy, changement de format) n'est plus mise en cache silencieusement — elle lève une erreur listant les clés reçues
 
