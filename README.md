@@ -494,6 +494,13 @@ L'historique des versions est disponible dans le [Changelog](CHANGELOG.md).
 
 ---
 
+## Contributeurs
+
+- **vv7r** — auteur
+- **Qwen3.8 27b** — IA assistante de développement
+
+---
+
 ## Licence
 
 Ce projet est distribué sous licence [MIT](LICENSE).
