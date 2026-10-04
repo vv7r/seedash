@@ -133,6 +133,7 @@ async function checkAuth() {
 function _authFailed() {
   localStorage.removeItem('seedash-authed');
   document.documentElement.classList.remove('ready');
+  stopPolling();
 }
 
 // === ÉTAT GLOBAL ===
@@ -411,23 +412,33 @@ document.getElementById('history-content').addEventListener('click', e => {
 });
 
 // === POLLING ===
-/** Démarre les trois intervalles de polling côté client (déclenchés une fois après login) :
+/** Démarre les intervalles de polling côté client (déclenchés une fois après login) :
  *  - Torrents actifs : toutes les 5 s, uniquement si l'onglet actifs est visible
  *  - Connexions LEDs : toutes les 30 s
- *  - Stats globales  : toutes les 60 s */
+ *  - Stats globales  : toutes les 60 s
+ *  - Auto-refresh config : toutes les 60 s */
 let pollingStarted = false;
+let pollingIntervals = [];
+let visibilityHandler = null;
 function startPolling() {
   if (pollingStarted) return;
   pollingStarted = true;
-  setInterval(() => {
+  pollingIntervals.push(setInterval(() => {
     if (document.getElementById('sec-actifs')?.classList.contains('active')) loadActifs();
-  }, 5000);
-  setInterval(loadConnections, 30000);
-  setInterval(loadStats, 60000);
-  setInterval(() => loadAutoRefreshConfig(false), 60000);
-  document.addEventListener('visibilitychange', () => {
+  }, 5000));
+  pollingIntervals.push(setInterval(loadConnections, 30000));
+  pollingIntervals.push(setInterval(loadStats, 60000));
+  pollingIntervals.push(setInterval(() => loadAutoRefreshConfig(false), 60000));
+  visibilityHandler = () => {
     if (document.visibilityState === 'visible') loadStats();
-  });
+  };
+  document.addEventListener('visibilitychange', visibilityHandler);
+}
+function stopPolling() {
+  for (const id of pollingIntervals) clearInterval(id);
+  pollingIntervals = [];
+  if (visibilityHandler) { document.removeEventListener('visibilitychange', visibilityHandler); visibilityHandler = null; }
+  pollingStarted = false;
 }
 
 // === INIT ===

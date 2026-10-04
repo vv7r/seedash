@@ -500,8 +500,9 @@ app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
   } catch {
     return res.status(400).json({ error: 'URL invalide' });
   }
+  const torrentId = new URL(url).pathname.split('/').pop();
   const downloadUrl = url.includes('/api?t=get') ? url
-    : `${cfg.c411.url.replace('/api/torznab','')}/api?t=get&id=${url.split('/').pop()}&apikey=${cfg.c411.apikey}`;
+    : `${cfg.c411.url.replace('/api/torznab','')}/api?t=get&id=${torrentId}&apikey=${cfg.c411.apikey}`;
   try {
     await qbit.qbitRequest('post', '/torrents/add', `urls=${encodeURIComponent(downloadUrl)}`);
     if (name && infohash) {
@@ -1089,13 +1090,37 @@ function scheduleTimer() {
   console.log(`[timer] planifié : toutes les ${cfg.timer.interval_hours}h`);
 }
 
+let server = null;
+
+function shutdown(signal) {
+  console.log(`[shutdown] ${signal} reçu — arrêt en cours`);
+  if (timerTask) clearInterval(timerTask);
+  if (server) {
+    server.close(() => {
+      saveCfg();
+      saveUploadHistory();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 10000);
+  } else {
+    saveCfg();
+    saveUploadHistory();
+    process.exit(0);
+  }
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
+process.on('unhandledRejection', (e) => {
+  console.error('[unhandledRejection]', e);
+});
+
 auth.initAuth(saveConn).then(() => {
   auth.decryptSecrets();
   saveCfg();
   scheduleTimer();
   pruneNameMap();
 
-  app.listen(cfg.port, '0.0.0.0', () => {
+  server = app.listen(cfg.port, '0.0.0.0', () => {
     console.log(`SeedDash démarré → http://0.0.0.0:${cfg.port}${cfg.baseurl}`);
   });
 });

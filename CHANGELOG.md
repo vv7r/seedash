@@ -11,6 +11,27 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.8] - 2026-10-04
+
+### Sécurité
+- `lib/helpers.js` : `isSafeUrl()` — blocage des adresses IPv6 dangereuses (`::1`, `::`, `fe80::/10` link-local) ; les crochets IPv6 sont maintenant correctement extraits du hostname
+- `server.js` : `unhandledRejection` handler — les rejections non gérées sont loggées au lieu de crasher le processus silencieusement
+
+### Corrigé
+- `server.js` : shutdown gracieux — `SIGTERM`/`SIGINT` ferment proprement le serveur (clear intervals, close server, flush writes) au lieu de laisser PM2 tuer le process brutalement
+- `public/app.js` : fuite de timers au logout — `stopPolling()` arrête tous les `setInterval` et le handler `visibilitychange` quand la session expire
+- `public/top.js` : `grabSelected()` — un échec partiel n'interrompt plus le loop ; toast de résultat partiel (X/Y réussis)
+- `server.js` : `POST /api/grab` — parsing URL robuste via `new URL()` au lieu de `url.split('/').pop()`
+
+### Ajouté
+- `tests/helpers-logic.test.js` : tests pour `isSafeUrl` (IPv6, cloud metadata), `getIn`, `setIn`, `maskSecret`
+- `tests/crypto-auth.test.js` : tests pour `crypto-config.js` (encrypt/decrypt, IV aléatoire, résilience clé changée) et `lib/auth.js` (initAuth, brute-force, decryptSecrets)
+
+### Modifié
+- `lib/auth.js` : `setInterval` unref'd — ne bloque plus la sortie du processus en mode test
+
+---
+
 ## [1.7.7] - 2026-10-04
 
 ### Corrigé
@@ -344,7 +365,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.7...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.8...HEAD
+[1.7.8]: https://github.com/vv7r/seedash/compare/v1.7.7...v1.7.8
 [1.7.7]: https://github.com/vv7r/seedash/compare/v1.7.6...v1.7.7
 [1.7.6]: https://github.com/vv7r/seedash/compare/v1.7.5...v1.7.6
 [1.7.5]: https://github.com/vv7r/seedash/compare/v1.7.4...v1.7.5

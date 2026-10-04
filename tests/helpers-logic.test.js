@@ -1,7 +1,7 @@
 'use strict';
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { isSafeUrl } = require('../lib/helpers');
+const { isSafeUrl, getIn, setIn, maskSecret } = require('../lib/helpers');
 
 describe('isSafeUrl', () => {
   it('accepte une URL http valide', () => {
@@ -41,5 +41,73 @@ describe('isSafeUrl', () => {
   it('accepte les hostname (non IP)', () => {
     assert.strictEqual(isSafeUrl('http://localhost:8080'), true);
     assert.strictEqual(isSafeUrl('https://example.com'), true);
+  });
+
+  it('rejette ::1 (loopback IPv6)', () => {
+    assert.strictEqual(isSafeUrl('http://[::1]:8080'), false);
+  });
+
+  it('rejette :: (unspecified IPv6)', () => {
+    assert.strictEqual(isSafeUrl('http://[::]:8080'), false);
+  });
+
+  it('rejette le link-local IPv6 fe80::', () => {
+    assert.strictEqual(isSafeUrl('http://[fe80::1]:8080'), false);
+    assert.strictEqual(isSafeUrl('http://[fe80::abcd:1234]:8080'), false);
+  });
+});
+
+describe('getIn', () => {
+  const obj = { a: { b: { c: 42 } }, d: null };
+
+  it('lit une valeur à un chemin valide', () => {
+    assert.strictEqual(getIn(obj, ['a', 'b', 'c']), 42);
+  });
+
+  it('retourne undefined si un niveau est absent', () => {
+    assert.strictEqual(getIn(obj, ['a', 'x', 'c']), undefined);
+  });
+
+  it('retourne undefined sur chemin vide', () => {
+    assert.strictEqual(getIn(obj, []), obj);
+  });
+
+  it('gère les valeurs null intermédiaires', () => {
+    assert.strictEqual(getIn(obj, ['d', 'x']), undefined);
+  });
+});
+
+describe('setIn', () => {
+  it('écrit une valeur à un chemin existant', () => {
+    const obj = { a: { b: 1 } };
+    setIn(obj, ['a', 'b'], 99);
+    assert.strictEqual(obj.a.b, 99);
+  });
+
+  it('ne crée pas les niveaux manquants', () => {
+    const obj = { a: {} };
+    setIn(obj, ['a', 'x', 'y'], 1);
+    assert.strictEqual(obj.a.x, undefined);
+  });
+});
+
+describe('maskSecret', () => {
+  it('retourne une chaîne vide pour une valeur vide', () => {
+    assert.strictEqual(maskSecret(''), '');
+    assert.strictEqual(maskSecret(null), '');
+    assert.strictEqual(maskSecret(undefined), '');
+  });
+
+  it('masque une valeur courte avec 8 étoiles', () => {
+    assert.strictEqual(maskSecret('abc'), '********');
+    assert.strictEqual(maskSecret('abcd'), '********');
+  });
+
+  it('masque partiellement une valeur longue', () => {
+    assert.strictEqual(maskSecret('abcdefghij', 3), 'abc****hij');
+  });
+
+  it('respecte le paramètre show', () => {
+    assert.strictEqual(maskSecret('abcdef', 1), 'a****f');
   });
 });

@@ -234,8 +234,16 @@ async function grabOne(idx) {
 /** Envoie en séquence tous les torrents de la sélection multiple à qBittorrent. */
 async function grabSelected() {
   if (!selectedGrab.size) { toast('Aucun torrent sélectionné.', 'error'); return; }
-  for (const [url, data] of selectedGrab) await fetchT(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url, name: data.name, infohash: data.infohash, category: data.category ?? null, size: data.size || 0, leechers: data.leechers || 0, seeders: data.seeders || 0 }) });
-  toast(selectedGrab.size + ' torrent(s) envoyé(s) à qBittorrent.');
+  let ok = 0, fail = 0;
+  for (const [url, data] of selectedGrab) {
+    try {
+      await fetchT(BASE + '/api/grab', { method: 'POST', headers: authHeaders(), credentials: 'include', body: JSON.stringify({ url, name: data.name, infohash: data.infohash, category: data.category ?? null, size: data.size || 0, leechers: data.leechers || 0, seeders: data.seeders || 0 }) });
+      ok++;
+    } catch (e) { fail++; }
+  }
+  if (fail === 0) toast(ok + ' torrent(s) envoyé(s) à qBittorrent.');
+  else if (ok === 0) toast('Échec : ' + fail + ' torrent(s) non envoyé(s).', 'error');
+  else toast(ok + ' envoyé(s), ' + fail + ' échec(s).', 'error');
   selectedGrab.clear();
   loadTop(); loadStats();
 }
