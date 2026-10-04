@@ -16,7 +16,7 @@ const qbit     = require('./lib/qbit');
 const ultracc  = require('./lib/ultracc');
 const grab     = require('./lib/grab');
 
-const { SECRET_PATHS, GRAB_RULE_KEYS, VALID_RULE_KEYS, getIn, setIn, maskSecret, isHttpUrl } = helpers;
+const { SECRET_PATHS, GRAB_RULE_KEYS, VALID_RULE_KEYS, getIn, setIn, maskSecret, isSafeUrl } = helpers;
 
 // --- Config ---
 const CFG_PATH           = path.join(__dirname, 'config.json');
@@ -865,9 +865,9 @@ app.get(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
 // POST /api/config/secrets
 app.post(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
   const { c411_url, c411_apikey, qbit_url, qbit_username, qbit_password, ultracc_url, ultracc_token } = req.body;
-  if (c411_url    && !isHttpUrl(c411_url))    return res.status(400).json({ error: 'c411_url invalide (doit commencer par http:// ou https://)' });
-  if (qbit_url    && !isHttpUrl(qbit_url))    return res.status(400).json({ error: 'qbit_url invalide (doit commencer par http:// ou https://)' });
-  if (ultracc_url && !isHttpUrl(ultracc_url)) return res.status(400).json({ error: 'ultracc_url invalide (doit commencer par http:// ou https://)' });
+  if (c411_url    && !isSafeUrl(c411_url))    return res.status(400).json({ error: 'c411_url invalide (doit commencer par http:// ou https://)' });
+  if (qbit_url    && !isSafeUrl(qbit_url))    return res.status(400).json({ error: 'qbit_url invalide (doit commencer par http:// ou https://)' });
+  if (ultracc_url && !isSafeUrl(ultracc_url)) return res.status(400).json({ error: 'ultracc_url invalide (doit commencer par http:// ou https://)' });
   const MAX_SECRET_LEN = 4096;
   if (c411_apikey   && c411_apikey.length   > MAX_SECRET_LEN) return res.status(400).json({ error: 'Clé API C411 trop longue' });
   if (qbit_username && qbit_username.length > 256)            return res.status(400).json({ error: 'Nom d\'utilisateur qBittorrent trop long' });
