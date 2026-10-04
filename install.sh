@@ -206,24 +206,26 @@ fi
 
 # ─── 9. Écriture directe dans connections.json ───────────────────────────────
 sep "Enregistrement des connexions"
-QBIT_URL="$QBIT_URL" QBIT_USER="$QBIT_USER" UC_URL="$UC_URL" UC_TOKEN="$UC_TOKEN" node -e "
+echo "{\"qbit_url\":\"$QBIT_URL\",\"qbit_user\":\"$QBIT_USER\",\"uc_url\":\"$UC_URL\",\"uc_token\":\"$UC_TOKEN\"}" | node -e "
   const fs = require('fs');
   const { encrypt } = require('./crypto-config');
 
-  const conn = JSON.parse(fs.readFileSync('connections.json', 'utf8'));
-  const key  = conn.auth?.jwt_secret;
-  if (!key) { console.error('jwt_secret absent'); process.exit(1); }
-
-  const e = process.env;
-  const enc = v => v ? encrypt(v, key) : undefined;
-
-  if (e.QBIT_URL)   conn.qbittorrent.url      = e.QBIT_URL;
-  if (e.QBIT_USER)  conn.qbittorrent.username  = enc(e.QBIT_USER);
-  if (e.UC_URL)     conn.ultracc_api.url        = e.UC_URL;
-  if (e.UC_TOKEN)   conn.ultracc_api.token      = enc(e.UC_TOKEN);
-
-  fs.writeFileSync('connections.json', JSON.stringify(conn, null, 2), { mode: 0o600 });
-  console.log('ok');
+  let raw = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', d => raw += d);
+  process.stdin.on('end', () => {
+    const c = JSON.parse(raw);
+    const conn = JSON.parse(fs.readFileSync('connections.json', 'utf8'));
+    const key  = conn.auth?.jwt_secret;
+    if (!key) { console.error('jwt_secret absent'); process.exit(1); }
+    const enc = v => v ? encrypt(v, key) : undefined;
+    if (c.qbit_url)  conn.qbittorrent.url      = c.qbit_url;
+    if (c.qbit_user) conn.qbittorrent.username  = enc(c.qbit_user);
+    if (c.uc_url)    conn.ultracc_api.url        = c.uc_url;
+    if (c.uc_token)  conn.ultracc_api.token      = enc(c.uc_token);
+    fs.writeFileSync('connections.json', JSON.stringify(conn, null, 2), { mode: 0o600 });
+    console.log('ok');
+  });
 " && ok "Connexions écrites dans connections.json" || warn "Erreur écriture connexions"
 
 pm2 reload seedash --silent
