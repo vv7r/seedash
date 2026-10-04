@@ -51,7 +51,7 @@ ok "Dépendances installées"
 # ─── 3. Port ─────────────────────────────────────────────────────────────────
 sep "Configuration du port"
 FREE_PORT=""
-port_is_free() { python3 -c "import socket,sys; s=socket.socket(); s.bind(('',int(sys.argv[1]))); s.close()" "$1" 2>/dev/null; }
+port_is_free() { node -e "const n=require('net').createServer().listen(+process.argv[1],()=>n.close());process.exit(0)" "$1" 2>/dev/null; }
 if command -v app-ports >/dev/null 2>&1; then
   while IFS= read -r candidate; do
     [[ "$candidate" =~ ^[0-9]{4,5}$ ]] || continue
