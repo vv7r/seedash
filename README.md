@@ -71,7 +71,7 @@ Une fois le script terminé, ouvrez l'URL publique affichée dans le terminal po
 ### Commandes utiles
 
 ```bash
-npm test               # tests unitaires (63 tests, runner natif node:test)
+npm test               # tests unitaires (116 tests, runner natif node:test)
 pm2 reload seedash     # rechargement gracieux après modification du code
 pm2 logs seedash       # logs en temps réel
 pm2 flush seedash      # vider les logs
@@ -200,6 +200,14 @@ Ce que les tests vérifient :
 - Le tri final est par leechers décroissants
 - `canGrab` limite le nombre de résultats retournés
 
+### `tests/helpers-logic.test.js` — 7 tests
+
+Teste `isSafeUrl(url)` et `checkUploadCondition(points, windowHours, thresholdMb, nowSec)` de `lib/helpers.js`.
+
+Ce que les tests vérifient :
+- `isSafeUrl` rejette les URLs privées (10.x, 172.16-31.x, 192.168.x, 169.254.x, 127.0.0.0/8 sauf 127.0.0.1) et les URLs non-http
+- `checkUploadCondition` : fenêtre stricte (couverture complète), ≥ 2 points, delta ≥ seuil
+
 ---
 
 ## Structure des fichiers de configuration
@@ -327,6 +335,7 @@ Toutes les routes (sauf `/api/login` et `/api/setup`) nécessitent un header `Au
 | `POST` | `/api/login` | `{username, password}` → cookie JWT httpOnly |
 | `POST` | `/api/logout` | Invalide le cookie de session |
 | `POST` | `/api/change-password` | `{current_password, new_password}` → change le mot de passe |
+| `GET` | `/api/auth/ping` | Ping léger (pas de rate limit) — utilisé par le frontend pour vérifier la session |
 
 ### Stats et monitoring
 
@@ -445,7 +454,7 @@ seedash/
 │   ├── grab.js            — auto-grab, filterCandidates (fonction pure testable)
 │   ├── qbit.js            — client qBittorrent (login, request, session)
 │   ├── ultracc.js         — client Ultra.cc (stats, cache TTL 5 min)
-│   └── helpers.js         — helpers purs (getIn, setIn, maskSecret, isHttpUrl)
+│   └── helpers.js         — helpers purs (getIn, setIn, maskSecret, isHttpUrl, isSafeUrl, checkUploadCondition)
 ├── public/
 │   ├── index.html         — HTML structurel pur (aucun style ni script inline)
 │   ├── style.css          — tout le CSS (variables CSS, layout, composants, thème sombre)
@@ -475,14 +484,15 @@ seedash/
 
 ## Sécurité
 
-- **Premier démarrage** : page de setup obligatoire (username + password choisis librement), pas de mot de passe par défaut
+- **Premier démarrage** : page de setup obligatoire (username + password choisis librement), pas de mot de passe par défaut — rate limit + brute-force protection
 - **JWT** signé avec `jwt_secret` (64 octets, généré aléatoirement, stocké uniquement dans `connections.json`) — cookie `maxAge` aligné dynamiquement sur `token_expiry` (`1h` à `168h`)
-- **Brute-force** : 5 tentatives de login max → blocage IP 15 minutes
+- **Brute-force** : 5 tentatives de login max → blocage IP 15 minutes (login + setup)
 - **AES-256-GCM** : tous les secrets (API keys, mots de passe) chiffrés sur disque — clé dérivée du JWT secret via SHA-256
 - **`connections.json` chmod 600** — toujours écrit avec permissions restrictives (lecture propriétaire uniquement)
 - **Helmet CSP** : `script-src 'self'`, `connect-src 'self'`, `frame-ancestors 'none'`
 - **Cache-Control: no-store** sur toutes les routes `/api`
-- **SSRF** : validation de l'URL du lien magnet avant envoi à qBittorrent
+- **SSRF** : validation de l'URL avant envoi à qBittorrent (hostname + pathway), `isSafeUrl` bloque les adresses privées (10.x, 172.16-31.x, 192.168.x, 169.254.x, 127.0.0.0/8 sauf 127.0.0.1)
+- **Rate limit API** : 30 req/60s par IP sur les endpoints lourds (top-leechers, torrents, stats, connections) + 30s cooldown sur `POST /api/grab`
 
 ---
 
