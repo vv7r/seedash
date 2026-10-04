@@ -9,6 +9,10 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+---
+
+## [1.7.7] - 2026-10-04
+
 ### Corrigé
 - `install.sh` : le service Ultra-API est confié à PM2 au lieu d'un `screen`, qui ne survivait ni à un crash ni à un redémarrage — le service pouvait rester à l'arrêt des semaines sans que rien ne le signale. L'interpréteur est référencé par son chemin canonique (`readlink -f`) : sur Ultra.cc, `$HOME` est un lien symbolique vers un volume numéroté propre au compte et, traversé via ce lien, Python ne reconnaît plus son venv et échoue sur `ModuleNotFoundError: flask`
 - `install.sh` : avertissement explicite si le venv Ultra-API ne trouve plus `flask`, cas typique d'une mise à jour du Python système qui rend les paquets invisibles
@@ -19,6 +23,13 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ### Modifié
 - Mise à jour des dépendances dans leur plage semver : `express` 4.22.1 → 4.22.2, `fast-xml-parser` 5.7.3 → 5.11.0
+
+### Sécurité
+- `axios` 1.19.0 → 1.20.0 — 12 CVEs (prototype pollution, ReDoS, header injection, SSRF, DoS)
+- `qs` 6.15.2 → 6.16.0 (GHSA-x5fp-wj9c-mxmx, GHSA-4mjr-xmp4-gh2g)
+- `body-parser` → 1.20.8 via overrides
+- `express` → 4.22.3
+- `form-data` → 1.1.1
 
 ---
 
@@ -333,7 +344,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.6...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.7...HEAD
+[1.7.7]: https://github.com/vv7r/seedash/compare/v1.7.6...v1.7.7
 [1.7.6]: https://github.com/vv7r/seedash/compare/v1.7.5...v1.7.6
 [1.7.5]: https://github.com/vv7r/seedash/compare/v1.7.4...v1.7.5
 [1.7.4]: https://github.com/vv7r/seedash/compare/v1.7.3...v1.7.4
