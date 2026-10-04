@@ -84,8 +84,8 @@ async function submitSetup() {
   const p2   = document.getElementById('setup-password2').value;
   const err  = document.getElementById('setup-error');
   err.textContent = '';
-  if (!username || username.length > 32 || !/^[a-zA-Z0-9._-]+$/.test(username))
-    { err.textContent = 'Nom d\'utilisateur invalide (1–32 caractères alphanumériques, . _ -)'; return; }
+  if (!username || username.length > 64 || !/^[a-zA-Z0-9_]+$/.test(username))
+    { err.textContent = 'Nom d\'utilisateur invalide (1–64 caractères alphanumériques et underscore)'; return; }
   if (p1.length < 8)  { err.textContent = 'Mot de passe trop court (min 8 caractères)'; return; }
   if (p1.length > 72) { err.textContent = 'Mot de passe trop long (max 72 caractères)'; return; }
   if (p1 !== p2)      { err.textContent = 'Les mots de passe ne correspondent pas'; return; }
@@ -120,7 +120,7 @@ async function checkAuth() {
     if (!s.setupComplete) { _authFailed(); showSetup(); return false; }
   } catch {}
   try {
-    const r = await fetchT(BASE + '/api/stats', { credentials: 'include' });
+    const r = await fetchT(BASE + '/api/auth/ping', { credentials: 'include' });
     if (r.status === 401) { _authFailed(); showLogin(); return false; }
     localStorage.setItem('seedash-authed', '1');
     hideLogin();

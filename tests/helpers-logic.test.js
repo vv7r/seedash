@@ -1,7 +1,7 @@
 'use strict';
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { isSafeUrl, getIn, setIn, maskSecret } = require('../lib/helpers');
+const { isSafeUrl, getIn, setIn, maskSecret, checkUploadCondition } = require('../lib/helpers');
 
 describe('isSafeUrl', () => {
   it('accepte une URL http valide', () => {
@@ -38,8 +38,17 @@ describe('isSafeUrl', () => {
     assert.strictEqual(isSafeUrl('http://192.168.1.1:8080'), true);
   });
 
+  it('rejette le hostname localhost', () => {
+    assert.strictEqual(isSafeUrl('http://localhost:8080'), false);
+    assert.strictEqual(isSafeUrl('http://LOCALHOST:8080'), false);
+  });
+
+  it('rejette le hostname metadata', () => {
+    assert.strictEqual(isSafeUrl('http://metadata/latest/meta-data/'), false);
+    assert.strictEqual(isSafeUrl('http://METADATA/latest/meta-data/'), false);
+  });
+
   it('accepte les hostname (non IP)', () => {
-    assert.strictEqual(isSafeUrl('http://localhost:8080'), true);
     assert.strictEqual(isSafeUrl('https://example.com'), true);
   });
 
@@ -54,6 +63,67 @@ describe('isSafeUrl', () => {
   it('rejette le link-local IPv6 fe80::', () => {
     assert.strictEqual(isSafeUrl('http://[fe80::1]:8080'), false);
     assert.strictEqual(isSafeUrl('http://[fe80::abcd:1234]:8080'), false);
+  });
+
+  it('rejette le link-local IPv6 fe90–febf (complément fe80::/10)', () => {
+    assert.strictEqual(isSafeUrl('http://[fe90::1]:8080'), false);
+    assert.strictEqual(isSafeUrl('http://[febf::1]:8080'), false);
+    assert.strictEqual(isSafeUrl('http://[fe8f::1]:8080'), false);
+  });
+
+  it('rejette l\'IPv4-mapped IPv6 vers metadata ::ffff:169.254.x.x', () => {
+    assert.strictEqual(isSafeUrl('http://[::ffff:169.254.169.254]/latest/meta-data/'), false);
+    assert.strictEqual(isSafeUrl('http://[::ffff:169.254.0.1]'), false);
+    assert.strictEqual(isSafeUrl('http://[::ffff:169.254.255.255]'), false);
+  });
+
+  it('rejette l\'IPv4-mapped IPv6 en forme hexadécimale (normalisée par URL)', () => {
+    assert.strictEqual(isSafeUrl('http://[::ffff:a9fe:a9fe]/'), false);
+    assert.strictEqual(isSafeUrl('http://[::ffff:a9:fe:a9:fe]/'), false);
+  });
+
+  it('accepte l\'IPv4-mapped IPv6 vers localhost ::ffff:127.0.0.1', () => {
+    assert.strictEqual(isSafeUrl('http://[::ffff:127.0.0.1]:8080'), true);
+  });
+
+  it('rejette 127.0.0.0/8 sauf 127.0.0.1', () => {
+    assert.strictEqual(isSafeUrl('http://127.0.0.1:8080'), true);
+    assert.strictEqual(isSafeUrl('http://127.0.0.2:8080'), false);
+    assert.strictEqual(isSafeUrl('http://127.1.0.1:8080'), false);
+    assert.strictEqual(isSafeUrl('http://127.255.255.255:8080'), false);
+  });
+});
+
+describe('checkUploadCondition', () => {
+  const nowSec = 1_000_000;
+  const winSec = 3600;
+
+  it('retourne true si upload < seuil sur la fenêtre', () => {
+    const points = [[nowSec - winSec, 1e6], [nowSec - 1800, 1.5e6], [nowSec - 600, 2e6]];
+    assert.strictEqual(checkUploadCondition('abc', points, nowSec, winSec, 10), true);
+  });
+
+  it('retourne false si upload ≥ seuil', () => {
+    const points = [[nowSec - 7200, 1e6], [nowSec - 1800, 2e7]];
+    assert.strictEqual(checkUploadCondition('abc', points, nowSec, winSec, 10), false);
+  });
+
+  it('retourne false si historique ne couvre pas la fenêtre', () => {
+    const points = [[nowSec - 600, 1e6], [nowSec - 300, 1.5e6]];
+    assert.strictEqual(checkUploadCondition('abc', points, nowSec, winSec, 10), false);
+  });
+
+  it('retourne false si moins de 2 points dans la fenêtre', () => {
+    const points = [[nowSec - 7200, 1e6]];
+    assert.strictEqual(checkUploadCondition('abc', points, nowSec, winSec, 10), false);
+  });
+
+  it('retourne false si historique vide', () => {
+    assert.strictEqual(checkUploadCondition('abc', [], nowSec, winSec, 10), false);
+  });
+
+  it('retourne false si points null', () => {
+    assert.strictEqual(checkUploadCondition('abc', null, nowSec, winSec, 10), false);
   });
 });
 

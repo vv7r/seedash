@@ -16,7 +16,7 @@ const qbit     = require('./lib/qbit');
 const ultracc  = require('./lib/ultracc');
 const grab     = require('./lib/grab');
 
-const { SECRET_PATHS, GRAB_RULE_KEYS, VALID_RULE_KEYS, getIn, setIn, maskSecret, isSafeUrl } = helpers;
+const { SECRET_PATHS, GRAB_RULE_KEYS, VALID_RULE_KEYS, getIn, setIn, maskSecret, isSafeUrl, checkUploadCondition } = helpers;
 
 // --- Config ---
 const CFG_PATH           = path.join(__dirname, 'config.json');
@@ -45,6 +45,8 @@ if (!fs.existsSync(path.join(__dirname, 'logs'))) {
 
 // Cache top leechers (persisté sur disque)
 let topCache = { items: [], date: null };
+let topCacheDirty = false;
+let resolvingNames = false;
 try { topCache = JSON.parse(fs.readFileSync(TOP_CACHE_PATH)); } catch {}
 
 // Callbacks pour grab.js (topCache est réassigné, pas muté)
@@ -153,7 +155,7 @@ function appendTorrentList(entries) {
 }
 
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', 'loopback');
 app.use(helmet({
   contentSecurityPolicy: {
     useDefaults: false,
@@ -167,12 +169,37 @@ app.use(helmet({
       formAction:     ["'self'"],
       frameAncestors: ["'none'"],
     }
-  }
+  },
+  frameguard: { action: 'deny' },
+  referrerPolicy: { policy: 'same-origin' },
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '64kb' }));
 app.use(cfg.baseurl, express.static(path.join(__dirname, 'public')));
 app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+
+// Rate limiter par IP pour les endpoints lourds (top-leechers, torrents, stats, connections)
+const apiRateLimits = new Map();
+const API_RATE_LIMIT = 30; // 30 req / fenêtre
+const API_RATE_WINDOW = 60000; // 60s
+function apiRateLimit(req, res, next) {
+  const ip = req.ip;
+  const now = Date.now();
+  if (!apiRateLimits.has(ip)) apiRateLimits.set(ip, []);
+  const hits = apiRateLimits.get(ip).filter(t => now - t < API_RATE_WINDOW);
+  if (hits.length >= API_RATE_LIMIT) return res.status(429).json({ error: 'Trop de requêtes, réessayez plus tard' });
+  hits.push(now);
+  apiRateLimits.set(ip, hits);
+  next();
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, hits] of apiRateLimits) {
+    const filtered = hits.filter(t => now - t < API_RATE_WINDOW);
+    if (filtered.length === 0) apiRateLimits.delete(ip);
+    else apiRateLimits.set(ip, filtered);
+  }
+}, 60000);
 
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
 
@@ -231,16 +258,19 @@ function saveConn() {
  * @param {string} source  - Origine de l'action : 'manuel', 'auto', etc.
  * @param {Array}  names   - Liste des torrents concernés [{name, url}]
  */
+let historyQueue = Promise.resolve();
 function appendHistory(type, count, source, names = []) {
-  let hist = [];
-  try { hist = JSON.parse(fs.readFileSync(HISTORY_PATH)); } catch {}
-  hist.unshift({ type, date: new Date().toISOString(), count, source, names });
-  if (hist.length > HISTORY_MAX) hist = hist.slice(0, HISTORY_MAX);
-  try {
-    const tmp = HISTORY_PATH + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(hist, null, 2));
-    fs.renameSync(tmp, HISTORY_PATH);
-  } catch(e) { console.error('[history] Erreur écriture:', e.message); }
+  historyQueue = historyQueue.then(() => {
+    let hist;
+    try { hist = JSON.parse(fs.readFileSync(HISTORY_PATH)); } catch { return; }
+    hist.unshift({ type, date: new Date().toISOString(), count, source, names });
+    if (hist.length > HISTORY_MAX) hist = hist.slice(0, HISTORY_MAX);
+    try {
+      const tmp = HISTORY_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(hist, null, 2));
+      fs.renameSync(tmp, HISTORY_PATH);
+    } catch(e) { console.error('[history] Erreur écriture:', e.message); }
+  });
 }
 
 // --- Config defaults init ---
@@ -280,8 +310,8 @@ function initConfig() {
   if (!cfg.qbittorrent) { cfg.qbittorrent = { url: '', username: '', password: '' }; }
   if (!cfg.ultracc_api) { cfg.ultracc_api = { url: '', token: '' }; }
   if (changed) {
-    saveCfg();
-    console.log('[config] Clés manquantes initialisées et sauvegardées');
+    try { saveCfg(); console.log('[config] Clés manquantes initialisées et sauvegardées'); }
+    catch(e) { console.error('[config] Clés initialisées mais sauvegarde échouée:', e.message); }
   }
 }
 
@@ -290,8 +320,8 @@ function initConfig() {
 // ============================================================
 
 // GET /api/top-leechers?n=20&cat=all
-app.get(`${cfg.baseurl}/api/top-leechers`, auth.requireAuth, async (req, res) => {
-  const n   = Math.min(parseInt(req.query.n) || 20, 100);
+app.get(`${cfg.baseurl}/api/top-leechers`, auth.requireAuth, apiRateLimit, async (req, res) => {
+  const n   = Math.max(1, Math.min(parseInt(req.query.n) || 20, 100));
   const cat = req.query.cat || '';
   try {
     const r = await axios.get(cfg.c411.url, {
@@ -325,13 +355,11 @@ app.get(`${cfg.baseurl}/api/top-leechers`, auth.requireAuth, async (req, res) =>
     });
     list.sort((a, b) => b.leechers - a.leechers);
     topCache = { items: list.slice(0, n), date: new Date().toISOString() };
-    try {
-      const tmp = TOP_CACHE_PATH + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(topCache, null, 2));
-      fs.renameSync(tmp, TOP_CACHE_PATH);
-    } catch(e) { console.error('[top-cache]', e.message); }
+    topCacheDirty = true;
 
     // Fire-and-forget : résolution en arrière-plan des noms/catégories
+    if (!resolvingNames) {
+    resolvingNames = true;
     (async () => {
       try {
         const active = await qbit.qbitRequest('get', '/torrents/info');
@@ -356,7 +384,7 @@ app.get(`${cfg.baseurl}/api/top-leechers`, auth.requireAuth, async (req, res) =>
         const unmapped = active.filter(t => {
           const h = t.hash.toLowerCase();
           return !categoryMap[h] || (!nameMap[h] && !topByHashName[h]);
-        });
+        }).slice(0, 10);
         for (const t of unmapped) {
           const hash    = t.hash.toLowerCase();
           const needCat  = !categoryMap[hash];
@@ -401,8 +429,9 @@ app.get(`${cfg.baseurl}/api/top-leechers`, auth.requireAuth, async (req, res) =>
           }
           await new Promise(resolve => setTimeout(resolve, 600));
         }
-      } catch {}
+      } finally { resolvingNames = false; }
     })();
+    }
 
     res.json(topCache);
   } catch (e) {
@@ -426,7 +455,7 @@ app.get(`${cfg.baseurl}/api/top-leechers/cache`, auth.requireAuth, (req, res) =>
 // ============================================================
 
 // GET /api/torrents
-app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, async (req, res) => {
+app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, apiRateLimit, async (req, res) => {
   try {
     const topByHash = {};
     const topCatByHash = {};
@@ -442,23 +471,16 @@ app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, async (req, res) => {
     const cleanOn     = cfg.auto_clean?.rules_on || {};
     const isCleanOn   = (k) => cleanOn[k] !== false;
     const nowSec      = Math.floor(Date.now() / 1000);
-    const ageMinSec   = (cleanRules.age_min_hours || 48) * 3600;
+    const ageMinSec   = (cleanRules.age_min_hours ?? 48) * 3600;
     const uploadMinMb = isCleanOn('upload_min_mb') && cleanRules.upload_min_mb > 0 ? cleanRules.upload_min_mb : null;
-    const uploadWinSec = (cleanRules.upload_window_hours || 48) * 3600;
+    const uploadWinSec = (cleanRules.upload_window_hours ?? 48) * 3600;
     const list = data.map(t => {
       const hash = t.hash.toLowerCase();
       let upload_condition = false;
       if (uploadMinMb !== null
         && (!isCleanOn('age_min_hours') || (nowSec - t.added_on) >= ageMinSec)
         && (!isCleanOn('ratio_min')     || t.ratio >= cleanRules.ratio_min)) {
-        const points   = uploadHistory[hash] || [];
-        const winStart = nowSec - uploadWinSec;
-        const inWin    = points.filter(([ts]) => ts >= winStart);
-        const historyCoversWindow = points.length > 0 && points[0][0] <= winStart;
-        if (historyCoversWindow && inWin.length >= 2) {
-          const delta = inWin[inWin.length - 1][1] - inWin[0][1];
-          if (delta >= 0 && delta / 1e6 < uploadMinMb) upload_condition = true;
-        }
+        upload_condition = checkUploadCondition(hash, uploadHistory[hash], nowSec, uploadWinSec, uploadMinMb);
       }
       return {
         hash:             t.hash,
@@ -486,10 +508,14 @@ app.get(`${cfg.baseurl}/api/torrents`, auth.requireAuth, async (req, res) => {
   }
 });
 
+let lastGrabAt = 0;
+
 // POST /api/grab
 app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
+  if (Date.now() - lastGrabAt < 30000) return res.status(429).json({ error: 'Réessayez dans quelques secondes' });
+  lastGrabAt = Date.now();
   const { url, name: rawName, page_url: rawPageUrl, infohash, category, size, leechers, seeders } = req.body;
-  const name = (typeof rawName === 'string') ? rawName.trim().slice(0, 1024) : '';
+  const name = (typeof rawName === 'string') ? rawName.replace(/[\r\n]/g, '').trim().slice(0, 1024) : '';
   // Sanitize page_url : seuls http(s) sont autorisés (bloque javascript:, data:, etc.)
   const page_url = (typeof rawPageUrl === 'string' && /^https?:\/\//i.test(rawPageUrl)) ? rawPageUrl : '';
   if (!url) return res.status(400).json({ error: 'url requis' });
@@ -497,24 +523,44 @@ app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
     const allowed = new URL(cfg.c411.url).hostname;
     const target  = new URL(url).hostname;
     if (target !== allowed) return res.status(400).json({ error: 'URL non autorisée' });
+    const pathname = new URL(url).pathname;
+    if (!/\/(torrents|api)/i.test(pathname)) return res.status(400).json({ error: 'Pathway URL non reconnue' });
   } catch {
     return res.status(400).json({ error: 'URL invalide' });
   }
+  // Enforcer active_max : refuser le grab si le nombre de torrents actifs atteint la limite
+  const activeMax = cfg.auto_grab?.rules?.active_max;
+  const activeMaxOn = cfg.auto_grab?.rules_on?.active_max !== false;
+  if (activeMaxOn && activeMax != null) {
+    try {
+      const torrents = await qbit.qbitRequest('get', '/torrents/info');
+      const active = torrents.filter(t => ['downloading','uploading','forcedDL','forcedUP'].includes(t.state));
+      if (active.length >= activeMax) {
+        return res.status(409).json({ error: `Limite de ${activeMax} torrents actifs atteinte` });
+      }
+    } catch (e) {
+      console.error('[grab] Vérif active_max ignorée:', e.message);
+    }
+  }
   const torrentId = new URL(url).pathname.split('/').pop();
-  const downloadUrl = url.includes('/api?t=get') ? url
-    : `${cfg.c411.url.replace('/api/torznab','')}/api?t=get&id=${torrentId}&apikey=${cfg.c411.apikey}`;
+  const c411Base = new URL(cfg.c411.url);
+  c411Base.pathname = '/api';
+  c411Base.searchParams.set('t', 'get');
+  c411Base.searchParams.set('id', torrentId);
+  c411Base.searchParams.set('apikey', cfg.c411.apikey);
+  const downloadUrl = url.includes('/api?t=get') ? url : c411Base.toString();
   try {
     await qbit.qbitRequest('post', '/torrents/add', `urls=${encodeURIComponent(downloadUrl)}`);
-    if (name && infohash) {
+    if (name && infohash && /^[a-f0-9]{40}$/i.test(infohash)) {
       const lhash = infohash.toLowerCase();
       nameMap[lhash] = name;
       saveNameMap();
-      if (category != null) { categoryMap[lhash] = String(category); saveCategoryMap(); }
+      if (category != null && Number.isInteger(category)) { categoryMap[lhash] = String(category); saveCategoryMap(); }
       appendTorrentList([{ hash: lhash, name, url: page_url || null }]);
     }
     const sizeNum = parseInt(size) || 0;
     const sizeStr = sizeNum >= 1e9 ? `${(sizeNum / 1e9).toFixed(1)} GB` : `${(sizeNum / 1e6).toFixed(0)} MB`;
-    console.log(`[grab] ok: ${name || '(sans nom)'} (${sizeStr}, ${parseInt(leechers) || 0}L/${parseInt(seeders) || 0}S)`);
+    console.log(`[grab] ok: ${String(name || '(sans nom)').replace(/[\r\n]/g, '')} (${sizeStr}, ${parseInt(leechers) || 0}L/${parseInt(seeders) || 0}S)`);
     if (name) appendHistory('grab', 1, 'manuel', [{ name, url: page_url || null }]);
     res.json({ ok: true });
   } catch (e) {
@@ -528,7 +574,7 @@ app.delete(`${cfg.baseurl}/api/torrents/:hash`, auth.requireAuth, async (req, re
   const { hash } = req.params;
   if (!/^[a-f0-9]{40}$/i.test(hash)) return res.status(400).json({ error: 'Hash invalide' });
   const deleteFiles = req.query.deleteFiles === 'true';
-  const name        = (typeof req.query.name === 'string' ? req.query.name : hash).slice(0, 256);
+  const name        = (typeof req.query.name === 'string' ? req.query.name : hash).replace(/[\r\n]/g, '').slice(0, 256);
   try {
     await qbit.qbitRequest('post', '/torrents/delete', `hashes=${hash}&deleteFiles=${deleteFiles}`);
     const lhash = hash.toLowerCase();
@@ -608,6 +654,8 @@ app.post(`${cfg.baseurl}/api/rules`, auth.requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Ratio maximum doit être supérieur à 0' });
   if (isOn('age_max_hours') && nextClean.age_max_hours <= 0)
     return res.status(400).json({ error: 'Âge maximum doit être supérieur à 0' });
+  if (isOn('upload_min_mb') && (nextClean.upload_window_hours ?? 48) <= 0)
+    return res.status(400).json({ error: 'Fenêtre upload doit être supérieure à 0' });
   cfg.auto_grab.rules    = nextGrab;
   cfg.auto_grab.rules_on = nextGrabOn;
   cfg.auto_clean.rules   = nextClean;
@@ -622,7 +670,7 @@ app.post(`${cfg.baseurl}/api/rules`, auth.requireAuth, (req, res) => {
 // ============================================================
 
 // GET /api/stats
-app.get(`${cfg.baseurl}/api/stats`, auth.requireAuth, async (req, res) => {
+app.get(`${cfg.baseurl}/api/stats`, auth.requireAuth, apiRateLimit, async (req, res) => {
   let active = 0, avgRatio = 0, dl_speed = 0, up_speed = 0;
   try {
     const torrents = await qbit.qbitRequest('get', '/torrents/info');
@@ -663,7 +711,7 @@ app.get(`${cfg.baseurl}/api/stats`, auth.requireAuth, async (req, res) => {
 // ============================================================
 
 // GET /api/connections
-app.get(`${cfg.baseurl}/api/connections`, auth.requireAuth, async (req, res) => {
+app.get(`${cfg.baseurl}/api/connections`, auth.requireAuth, apiRateLimit, async (req, res) => {
   const [qbitRes, c411Res, ultraccRes] = await Promise.allSettled([
     qbit.qbitRequest('get', '/app/version').then(() => 'ok'),
     axios.get(cfg.c411.url, { params: { apikey: cfg.c411.apikey, t: 'caps' }, timeout: 8000 }).then(() => 'ok'),
@@ -676,7 +724,7 @@ app.get(`${cfg.baseurl}/api/connections`, auth.requireAuth, async (req, res) => 
     if (e.code === 'ECONNREFUSED') return 'Connexion refusée';
     if (e.code === 'ETIMEDOUT' || e.code === 'ECONNABORTED') return 'Timeout';
     if (e.code === 'ENOTFOUND') return 'Hôte introuvable';
-    return e.message?.slice(0, 60) || 'Erreur inconnue';
+    return 'Erreur inconnue';
   };
   res.json({
     qbittorrent: qbitRes.status    === 'fulfilled' ? 'ok' : errMsg(qbitRes),
@@ -750,18 +798,20 @@ app.get(`${cfg.baseurl}/api/history`, auth.requireAuth, (req, res) => {
 
 // DELETE /api/history
 app.delete(`${cfg.baseurl}/api/history`, auth.requireAuth, (req, res) => {
-  const { date } = req.body;
+  const date = req.query.date || req.body?.date;
   if (!date) return res.status(400).json({ error: 'date requis' });
-  try {
-    let hist = JSON.parse(fs.readFileSync(HISTORY_PATH));
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(date)) return res.status(400).json({ error: 'date invalide' });
+  historyQueue = historyQueue.then(() => {
+    let hist = [];
+    try { hist = JSON.parse(fs.readFileSync(HISTORY_PATH)); } catch {}
     const idx = hist.findIndex(e => e.date === date);
-    if (idx === -1) return res.status(404).json({ error: 'Entrée introuvable' });
+    if (idx === -1) { res.status(404).json({ error: 'Entrée introuvable' }); return; }
     hist.splice(idx, 1);
     const tmp = HISTORY_PATH + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(hist, null, 2));
     fs.renameSync(tmp, HISTORY_PATH);
     res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: 'Erreur serveur interne' }); }
+  }).catch(e => { res.status(500).json({ error: 'Erreur serveur interne' }); });
 });
 
 // ============================================================
@@ -774,19 +824,25 @@ app.get(`${cfg.baseurl}/api/setup/status`, (_req, res) => {
 });
 
 // POST /api/setup
-app.post(`${cfg.baseurl}/api/setup`, async (req, res) => {
+app.post(`${cfg.baseurl}/api/setup`, apiRateLimit, async (req, res) => {
   if (auth.isSetupComplete()) return res.status(403).json({ error: 'Setup déjà effectué' });
   const ip = req.ip;
   if (auth.checkBruteForce(ip)) return res.status(429).json({ error: 'Trop de tentatives, réessayez dans quelques minutes' });
   const { username, password } = req.body;
   const u = typeof username === 'string' ? username.trim() : '';
   const p = typeof password === 'string' ? password : '';
-  if (!u || u.length > 32 || !/^[a-zA-Z0-9._-]+$/.test(u))
-    return res.status(400).json({ error: 'Nom d\'utilisateur invalide (1–32 caractères alphanumériques, . _ -)' });
-  if (p.length < 8)
+  if (!u || u.length > 64 || !/^[a-zA-Z0-9_]+$/.test(u)) {
+    auth.recordFailedLogin(ip);
+    return res.status(400).json({ error: 'Nom d\'utilisateur invalide (1–64 caractères alphanumériques et underscore)' });
+  }
+  if (p.length < 8) {
+    auth.recordFailedLogin(ip);
     return res.status(400).json({ error: 'Mot de passe trop court (min 8 caractères)' });
-  if (p.length > 72)
+  }
+  if (p.length > 72) {
+    auth.recordFailedLogin(ip);
     return res.status(400).json({ error: 'Mot de passe trop long (max 72 caractères)' });
+  }
   cfg.auth.username      = u;
   cfg.auth.password_hash = await bcrypt.hash(p, 12);
   cfg.auth.setup_completed = true;
@@ -823,7 +879,7 @@ app.post(`${cfg.baseurl}/api/login`, async (req, res) => {
     httpOnly: true,
     secure:   req.secure || req.headers['x-forwarded-proto'] === 'https',
     sameSite: 'Strict',
-    maxAge:   parseInt(expiry) * (expiry.endsWith('h') ? 3600000 : 86400000),
+    maxAge:   parseInt(expiry) * 3600000,
     path:     cfg.baseurl + '/',
   });
   res.json({ ok: true });
@@ -850,13 +906,18 @@ app.post(`${cfg.baseurl}/api/logout`, (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/auth/ping — léger, pas de rate limit, pour checkAuth frontend
+app.get(`${cfg.baseurl}/api/auth/ping`, auth.requireAuth, (req, res) => {
+  res.json({ ok: true });
+});
+
 // GET /api/config/secrets
 app.get(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
   res.json({
     c411_url:      cfg.c411?.url             || '',
     c411_apikey:   maskSecret(cfg.c411?.apikey),
     qbit_url:      cfg.qbittorrent?.url      || '',
-    qbit_username: cfg.qbittorrent?.username || '',
+    qbit_username: maskSecret(cfg.qbittorrent?.username, 1),
     qbit_password: maskSecret(cfg.qbittorrent?.password, 1),
     ultracc_url:   cfg.ultracc_api?.url      || '',
     ultracc_token: maskSecret(cfg.ultracc_api?.token),
@@ -866,9 +927,9 @@ app.get(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
 // POST /api/config/secrets
 app.post(`${cfg.baseurl}/api/config/secrets`, auth.requireAuth, (req, res) => {
   const { c411_url, c411_apikey, qbit_url, qbit_username, qbit_password, ultracc_url, ultracc_token } = req.body;
-  if (c411_url    && !isSafeUrl(c411_url))    return res.status(400).json({ error: 'c411_url invalide (doit commencer par http:// ou https://)' });
-  if (qbit_url    && !isSafeUrl(qbit_url))    return res.status(400).json({ error: 'qbit_url invalide (doit commencer par http:// ou https://)' });
-  if (ultracc_url && !isSafeUrl(ultracc_url)) return res.status(400).json({ error: 'ultracc_url invalide (doit commencer par http:// ou https://)' });
+  if (c411_url    && !isSafeUrl(c411_url))    return res.status(400).json({ error: 'c411_url invalide (adresse non autorisée)' });
+  if (qbit_url    && !isSafeUrl(qbit_url))    return res.status(400).json({ error: 'qbit_url invalide (adresse non autorisée)' });
+  if (ultracc_url && !isSafeUrl(ultracc_url)) return res.status(400).json({ error: 'ultracc_url invalide (adresse non autorisée)' });
   const MAX_SECRET_LEN = 4096;
   if (c411_apikey   && c411_apikey.length   > MAX_SECRET_LEN) return res.status(400).json({ error: 'Clé API C411 trop longue' });
   if (qbit_username && qbit_username.length > 256)            return res.status(400).json({ error: 'Nom d\'utilisateur qBittorrent trop long' });
@@ -996,6 +1057,14 @@ setInterval(async () => {
     const activeHashes = new Set(torrents.map(t => t.hash.toLowerCase()));
     pruneUploadHistory(activeHashes);
     saveUploadHistory();
+    if (topCacheDirty) {
+      try {
+        const tmp = TOP_CACHE_PATH + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(topCache, null, 2));
+        fs.renameSync(tmp, TOP_CACHE_PATH);
+        topCacheDirty = false;
+      } catch(e) { console.error('[top-cache]', e.message); }
+    }
   } catch(e) { /* qBit inaccessible — silencieux */ }
 }, 5 * 60 * 1000);
 
@@ -1009,7 +1078,7 @@ app.use((err, req, res, next) => {
 
 // Callback cleaner.js
 cleaner.setRunCompleteCallback((st) => {
-  saveCfg();
+  try { saveCfg(); } catch(e) { console.error('[cleaner-cb] save failed:', e.message); }
   if (st.last_deleted_hashes?.length) {
     let nameMapDirty = false, catMapDirty = false, excludedDirty = false;
     for (const h of st.last_deleted_hashes) {
@@ -1070,10 +1139,10 @@ function scheduleTimer() {
     const lastRun    = cfg.timer.last_run ? new Date(cfg.timer.last_run).getTime() : 0;
     if (Date.now() - lastRun < intervalMs) return;
     timerRunning       = true;
-    cfg.timer.last_run = new Date().toISOString();
-    saveCfg();
     console.log('[timer] Cycle démarré');
     try {
+      cfg.timer.last_run = new Date().toISOString();
+      saveCfg();
       if (cfg.auto_clean?.enabled) await cleaner.runClean('auto');
       await new Promise(r => setTimeout(r, 10000));
       if (cfg.auto_grab?.enabled) {
@@ -1097,14 +1166,12 @@ function shutdown(signal) {
   if (timerTask) clearInterval(timerTask);
   if (server) {
     server.close(() => {
-      saveCfg();
-      saveUploadHistory();
+      try { saveCfg(); saveUploadHistory(); if (topCacheDirty) { const tmp = TOP_CACHE_PATH + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(topCache, null, 2)); fs.renameSync(tmp, TOP_CACHE_PATH); } } catch(e) { console.error('[shutdown] save failed:', e.message); }
       process.exit(0);
     });
     setTimeout(() => process.exit(1), 10000);
   } else {
-    saveCfg();
-    saveUploadHistory();
+    try { saveCfg(); saveUploadHistory(); } catch(e) { console.error('[shutdown] save failed:', e.message); }
     process.exit(0);
   }
 }
@@ -1114,13 +1181,16 @@ process.on('unhandledRejection', (e) => {
   console.error('[unhandledRejection]', e);
 });
 
-auth.initAuth(saveConn).then(() => {
+auth.initAuth(saveConn).then(async () => {
   auth.decryptSecrets();
   saveCfg();
   scheduleTimer();
-  pruneNameMap();
+  await pruneNameMap();
 
   server = app.listen(cfg.port, '0.0.0.0', () => {
     console.log(`SeedDash démarré → http://0.0.0.0:${cfg.port}${cfg.baseurl}`);
   });
+}).catch(e => {
+  console.error('[startup] Fatal:', e.message);
+  process.exit(1);
 });

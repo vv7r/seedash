@@ -55,6 +55,7 @@ function fmtAge(added_on) {
 function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -62,6 +63,7 @@ function fmtDate(iso) {
 function fmtDateStack(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
   return `<span class="hist-date-day">${d.toLocaleDateString('fr-FR')}</span><span class="hist-date-time">${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>`;
 }
 
