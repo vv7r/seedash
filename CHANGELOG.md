@@ -9,6 +9,11 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
+### Modifié
+- `tests/auto-rules.test.js` : isolation via temp dirs (`os.tmpdir()`) — le test n'écrit plus dans le `config.json` ni les `logs/*.json` réels
+- `lib/cleaner.js` : `init(options)` accepte `cfgPath`, `connPath`, `logDir` — chemins injectables pour les tests
+- `lib/grab.js` : `init()` accepte un 5e paramètre `logDir` — chemin de log injectable
+
 ---
 
 ## [1.7.10] - 2026-10-09
@@ -30,9 +35,6 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ### Modifié
 - `tests/auto-rules.test.js` : mock auto-contenu (spawn en `before()`, kill en `after()`) — plus de serveur manuel requis
-- `tests/auto-rules.test.js` : isolation via temp dirs (`os.tmpdir()`) — le test n'écrit plus dans le `config.json` ni les `logs/*.json` réels
-- `lib/cleaner.js` : `init(options)` accepte `cfgPath`, `connPath`, `logDir` — chemins injectables pour les tests
-- `lib/grab.js` : `init()` accepte un 5e paramètre `logDir` — chemin de log injectable
 - `.gitignore` : ajout `.playwright-cli/`
 - `README.md` : compteur de tests 116 → 132, section `auto-rules.test.js` ajoutée, arborescence mise à jour
 

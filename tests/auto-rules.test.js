@@ -78,6 +78,7 @@ before(async () => {
     c411:       { url: C411_URL, apikey: 'mock' },
     qbittorrent:{ url: QBIT_URL, username: 'admin', password: 'admin' },
   });
+  writeJson(path.join(tmpDir, 'connections.json'), {});
 
   mockProc = spawn(process.execPath, [path.join(__dirname, 'mock-api.js')], {
     stdio: 'ignore',
@@ -97,7 +98,7 @@ before(async () => {
 
 after(() => {
   if (mockProc) mockProc.kill('SIGTERM');
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 // ── runClean — différentes règles ──────────────────────────────────────────
@@ -114,7 +115,7 @@ describe('runClean — règles auto-clean', () => {
     const cleaner = require('../lib/cleaner');
     cleaner.init({
       cfgPath:  path.join(tmpDir, 'config.json'),
-      connPath: path.join(tmpDir, 'config.json'),
+      connPath: path.join(tmpDir, 'connections.json'),
       logDir:   path.join(tmpDir, 'logs'),
     });
     cleaner.initQbit(qbitRequest);
@@ -411,7 +412,7 @@ describe('Cycle complet — clean + grab avec règles', () => {
     const cleaner = require('../lib/cleaner');
     cleaner.init({
       cfgPath:  path.join(tmpDir, 'config.json'),
-      connPath: path.join(tmpDir, 'config.json'),
+      connPath: path.join(tmpDir, 'connections.json'),
       logDir:   path.join(tmpDir, 'logs'),
     });
     cleaner.initQbit(qbitRequest);
