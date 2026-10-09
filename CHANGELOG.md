@@ -11,6 +11,13 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.10] - 2026-10-09
+
+### Sécurité
+- `package-lock.json` : `proxy-addr` 2.0.7 → 2.0.8 (CVE-2026-90711, IP spoofing via IPv4-mapped IPv6 trust subnet)
+
+---
+
 ## [1.7.9] - 2026-10-09
 
 ### Sécurité
@@ -385,7 +392,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.9...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.10...HEAD
+[1.7.10]: https://github.com/vv7r/seedash/compare/v1.7.9...v1.7.10
 [1.7.9]: https://github.com/vv7r/seedash/compare/v1.7.8...v1.7.9
 [1.7.8]: https://github.com/vv7r/seedash/compare/v1.7.7...v1.7.8
 [1.7.7]: https://github.com/vv7r/seedash/compare/v1.7.6...v1.7.7
