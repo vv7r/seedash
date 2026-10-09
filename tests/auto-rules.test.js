@@ -3,22 +3,17 @@
 const { describe, it, before, after, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const axios = require('axios');
 const { spawn } = require('child_process');
-
-const ROOT = path.join(__dirname, '..');
-const CFG_PATH = path.join(ROOT, 'config.json');
-const UPLOAD_HISTORY_PATH = path.join(ROOT, 'logs', 'upload-history.json');
-const EXCLUDED_PATH = path.join(ROOT, 'logs', 'excluded.json');
-const TOP_CACHE_PATH = path.join(ROOT, 'logs', 'top-cache.json');
-const NAME_MAP_PATH = path.join(ROOT, 'logs', 'namemap.json');
 
 const QBIT_URL = 'http://127.0.0.1:8080';
 const C411_URL = 'http://127.0.0.1:8081/api/torznab';
 const ULTRACC_URL = 'http://127.0.0.1:8082/ultra-api/total-stats';
 
 let mockProc;
+let tmpDir;
 
 // ── qBittorrent client (parle au mock) ─────────────────────────────────────
 let qbitCookies = '';
@@ -58,14 +53,6 @@ async function getUltraccInfo() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-function backupFile(p) {
-  if (fs.existsSync(p)) return fs.readFileSync(p);
-  return null;
-}
-function restoreFile(p, content) {
-  if (content !== null) fs.writeFileSync(p, content);
-  else if (fs.existsSync(p)) fs.unlinkSync(p);
-}
 function writeJson(p, obj) {
   const tmp = p + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(obj, null, 2));
@@ -73,21 +60,24 @@ function writeJson(p, obj) {
 }
 
 function readCfg() {
-  return JSON.parse(fs.readFileSync(CFG_PATH));
+  return JSON.parse(fs.readFileSync(path.join(tmpDir, 'config.json')));
 }
 function writeCfg(cfg) {
-  writeJson(CFG_PATH, cfg);
+  writeJson(path.join(tmpDir, 'config.json'), cfg);
 }
 
-// ── État sauvegardé ─────────────────────────────────────────────────────────
-let savedCfg, savedUpload, savedExcluded, savedTopCache, savedNameMap;
-
+// ── Setup ───────────────────────────────────────────────────────────────────
 before(async () => {
-  savedCfg = backupFile(CFG_PATH);
-  savedUpload = backupFile(UPLOAD_HISTORY_PATH);
-  savedExcluded = backupFile(EXCLUDED_PATH);
-  savedTopCache = backupFile(TOP_CACHE_PATH);
-  savedNameMap = backupFile(NAME_MAP_PATH);
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seedash-test-'));
+  const logDir = path.join(tmpDir, 'logs');
+  fs.mkdirSync(logDir, { recursive: true });
+
+  writeJson(path.join(tmpDir, 'config.json'), {
+    auto_clean: { enabled: false, delete_files: false, rules: {}, rules_on: {} },
+    auto_grab:  { enabled: false, rules: {}, rules_on: {}, last_run: null, last_grab_count: 0 },
+    c411:       { url: C411_URL, apikey: 'mock' },
+    qbittorrent:{ url: QBIT_URL, username: 'admin', password: 'admin' },
+  });
 
   mockProc = spawn(process.execPath, [path.join(__dirname, 'mock-api.js')], {
     stdio: 'ignore',
@@ -107,11 +97,7 @@ before(async () => {
 
 after(() => {
   if (mockProc) mockProc.kill('SIGTERM');
-  restoreFile(CFG_PATH, savedCfg);
-  restoreFile(UPLOAD_HISTORY_PATH, savedUpload);
-  restoreFile(EXCLUDED_PATH, savedExcluded);
-  restoreFile(TOP_CACHE_PATH, savedTopCache);
-  restoreFile(NAME_MAP_PATH, savedNameMap);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 // ── runClean — différentes règles ──────────────────────────────────────────
@@ -120,9 +106,20 @@ describe('runClean — règles auto-clean', () => {
 
   beforeEach(async () => {
     await resetMock();
-    writeJson(EXCLUDED_PATH, {});
-    writeJson(UPLOAD_HISTORY_PATH, {});
+    writeJson(path.join(tmpDir, 'logs', 'excluded.json'), {});
+    writeJson(path.join(tmpDir, 'logs', 'upload-history.json'), {});
   });
+
+  function setupCleaner() {
+    const cleaner = require('../lib/cleaner');
+    cleaner.init({
+      cfgPath:  path.join(tmpDir, 'config.json'),
+      connPath: path.join(tmpDir, 'config.json'),
+      logDir:   path.join(tmpDir, 'logs'),
+    });
+    cleaner.initQbit(qbitRequest);
+    return cleaner;
+  }
 
   it('ratio_min seul actif — supprime les torrents avec ratio ≥ seuil', async () => {
     const cfg = readCfg();
@@ -134,11 +131,8 @@ describe('runClean — règles auto-clean', () => {
     };
     writeCfg(cfg);
 
-    const cleaner = require('../lib/cleaner');
-    cleaner.initQbit(qbitRequest);
+    const cleaner = setupCleaner();
     const deleted = await cleaner.runClean('test');
-
-    // ratio≥1.5 : torrent[0] (2.5) ✓, torrent[1] (0) ✗, torrent[2] (1.8) ✓
     assert.equal(deleted, 2);
   });
 
@@ -152,11 +146,8 @@ describe('runClean — règles auto-clean', () => {
     };
     writeCfg(cfg);
 
-    const cleaner = require('../lib/cleaner');
-    cleaner.initQbit(qbitRequest);
+    const cleaner = setupCleaner();
     const deleted = await cleaner.runClean('test');
-
-    // âge≥24h : torrent[0] (10j=240h) ✓, torrent[1] (5h) ✗, torrent[2] (3j=72h) ✓
     assert.equal(deleted, 2);
   });
 
@@ -170,14 +161,8 @@ describe('runClean — règles auto-clean', () => {
     };
     writeCfg(cfg);
 
-    const cleaner = require('../lib/cleaner');
-    cleaner.initQbit(qbitRequest);
+    const cleaner = setupCleaner();
     const deleted = await cleaner.runClean('test');
-
-    // ratio≥1.5 ET âge≥36h :
-    //   torrent[0]: ratio=2.5, âge=240h → ✓
-    //   torrent[1]: ratio=0,   âge=5h    → ✗
-    //   torrent[2]: ratio=1.8, âge=72h   → ✓
     assert.equal(deleted, 2);
   });
 
@@ -191,13 +176,8 @@ describe('runClean — règles auto-clean', () => {
     };
     writeCfg(cfg);
 
-    const cleaner = require('../lib/cleaner');
-    cleaner.initQbit(qbitRequest);
+    const cleaner = setupCleaner();
     const deleted = await cleaner.runClean('test');
-
-    // ratio_max=2.0 → supprime ratio≥2.0 : torrent[0] (2.5)
-    // ratio_min=5 + age_min=100h : aucun torrent ne passe la condition min
-    // OU → seul ratio_max compte : 1 supprimé
     assert.equal(deleted, 1);
   });
 
@@ -211,10 +191,8 @@ describe('runClean — règles auto-clean', () => {
     };
     writeCfg(cfg);
 
-    const cleaner = require('../lib/cleaner');
-    cleaner.initQbit(qbitRequest);
+    const cleaner = setupCleaner();
     const deleted = await cleaner.runClean('test');
-
     assert.equal(deleted, 0);
   });
 
@@ -229,16 +207,10 @@ describe('runClean — règles auto-clean', () => {
     writeCfg(cfg);
 
     const torrents = await qbitRequest('get', '/torrents/info');
-    writeJson(EXCLUDED_PATH, { [torrents[0].hash.toLowerCase()]: true });
+    writeJson(path.join(tmpDir, 'logs', 'excluded.json'), { [torrents[0].hash.toLowerCase()]: true });
 
-    const cleaner = require('../lib/cleaner');
-    cleaner.initQbit(qbitRequest);
+    const cleaner = setupCleaner();
     const deleted = await cleaner.runClean('test');
-
-    // 3 torrents, 1 protégé. ratio≥1 ET âge≥1h :
-    //   torrent[0]: protégé → ignoré
-    //   torrent[1]: ratio=0 < 1 → ✗
-    //   torrent[2]: ratio=1.8, âge=72h → ✓
     assert.equal(deleted, 1);
   });
 
@@ -260,15 +232,10 @@ describe('runClean — règles auto-clean', () => {
       [torrents[0].hash.toLowerCase()]: [[winStart - 100, 0], [winStart + 100, 0], [now, 50e6]],
       [torrents[2].hash.toLowerCase()]: [[winStart - 100, 0], [winStart + 100, 0], [now, 200e6]],
     };
-    writeJson(UPLOAD_HISTORY_PATH, hist);
+    writeJson(path.join(tmpDir, 'logs', 'upload-history.json'), hist);
 
-    const cleaner = require('../lib/cleaner');
-    cleaner.initQbit(qbitRequest);
+    const cleaner = setupCleaner();
     const deleted = await cleaner.runClean('test');
-
-    // torrent[0]: 50MB < 100MB → supprimé
-    // torrent[1]: pas d'historique → non éligible
-    // torrent[2]: 200MB ≥ 100MB → non supprimé
     assert.equal(deleted, 1);
   });
 
@@ -282,13 +249,8 @@ describe('runClean — règles auto-clean', () => {
     };
     writeCfg(cfg);
 
-    const cleaner = require('../lib/cleaner');
-    cleaner.initQbit(qbitRequest);
+    const cleaner = setupCleaner();
     const deleted = await cleaner.runClean('test');
-
-    // torrent[0]: ratio=2.5≥1.5, âge=240h≥36h → normal ✓
-    // torrent[1]: ratio=0, âge=5h → normal ✗, ratio_max ✗ (0<3), age_max ✗ (5h<100h)
-    // torrent[2]: ratio=1.8≥1.5, âge=72h≥36h → normal ✓
     assert.equal(deleted, 2);
   });
 });
@@ -299,8 +261,8 @@ describe('runAutoGrab — règles auto-grab', () => {
 
   beforeEach(async () => {
     await resetMock();
-    writeJson(TOP_CACHE_PATH, { items: [], date: '' });
-    writeJson(NAME_MAP_PATH, {});
+    writeJson(path.join(tmpDir, 'logs', 'top-cache.json'), { items: [], date: '' });
+    writeJson(path.join(tmpDir, 'logs', 'namemap.json'), {});
     const grab = require('../lib/grab');
     grab.resetStatus();
   });
@@ -320,9 +282,10 @@ describe('runAutoGrab — règles auto-grab', () => {
 
     const grab = require('../lib/grab');
     const maps = { nameMap: {}, categoryMap: {} };
+    const logDir = path.join(tmpDir, 'logs');
     const fns = {
-      getTopCache: () => JSON.parse(fs.readFileSync(TOP_CACHE_PATH)),
-      setTopCache: (c) => writeJson(TOP_CACHE_PATH, c),
+      getTopCache: () => JSON.parse(fs.readFileSync(path.join(logDir, 'top-cache.json'))),
+      setTopCache: (c) => writeJson(path.join(logDir, 'top-cache.json'), c),
       saveCfg: () => writeCfg(readCfg()),
       saveNameMap: () => {},
       saveCategoryMap: () => {},
@@ -332,7 +295,7 @@ describe('runAutoGrab — règles auto-grab', () => {
       getUltraccInfo,
       isCleanRunning: () => false,
     };
-    grab.init(cfg, maps, fns, TOP_CACHE_PATH);
+    grab.init(cfg, maps, fns, path.join(logDir, 'top-cache.json'), logDir);
     return grab;
   }
 
@@ -353,10 +316,6 @@ describe('runAutoGrab — règles auto-grab', () => {
     const before = (await qbitRequest('get', '/torrents/info')).length;
     const grabbed = await grab.runAutoGrab('test');
     const after = (await qbitRequest('get', '/torrents/info')).length;
-
-    // C411 : 4.5GB, 3.2GB, 0.55GB, 15GB, 2.1GB
-    // size≤3GB → 0.55GB et 2.1GB (2 candidats)
-    // 3 torrents existants → 2 nouveaux
     assert.equal(grabbed, 2);
     assert.equal(after, before + 2);
   });
@@ -369,9 +328,6 @@ describe('runAutoGrab — règles auto-grab', () => {
     const before = (await qbitRequest('get', '/torrents/info')).length;
     const grabbed = await grab.runAutoGrab('test');
     const after = (await qbitRequest('get', '/torrents/info')).length;
-
-    // C411 leechers (peers-seeders) : 3, 14, 5, 35, 7
-    // min_leechers=10 → 14 et 35 (2 candidats)
     assert.equal(grabbed, 2);
     assert.equal(after, before + 2);
   });
@@ -381,9 +337,6 @@ describe('runAutoGrab — règles auto-grab', () => {
       { grab_limit_per_day: 10, active_max: 1, size_max_gb: 0, min_leechers: 0, min_seeders: 0, network_max_pct: 0 },
       { grab_limit_per_day: true, active_max: true, size_max_gb: false, min_leechers: false, min_seeders: false, network_max_pct: false },
     );
-
-    // Mock a 3 torrents : 2 uploading + 1 downloading = 3 actifs
-    // active_max=1 → slots = max(0, 1-3) = 0 → aucun grab
     const grabbed = await grab.runAutoGrab('test');
     assert.equal(grabbed, 0);
   });
@@ -393,7 +346,6 @@ describe('runAutoGrab — règles auto-grab', () => {
       { grab_limit_per_day: 10, active_max: 0, size_max_gb: 0, min_leechers: 0, min_seeders: 0, network_max_pct: 5 },
       { grab_limit_per_day: true, active_max: false, size_max_gb: false, min_leechers: false, min_seeders: false, network_max_pct: true },
     );
-    // Mock Ultra.cc : traffic = 30/500 = 6% > 5% → bloqué
     const grabbed = await grab.runAutoGrab('test');
     assert.equal(grabbed, 0);
   });
@@ -406,8 +358,6 @@ describe('runAutoGrab — règles auto-grab', () => {
     const before = (await qbitRequest('get', '/torrents/info')).length;
     const grabbed = await grab.runAutoGrab('test');
     const after = (await qbitRequest('get', '/torrents/info')).length;
-
-    // C411 a 5 torrents, 1 partage un hash avec qBit → 4 nouveaux
     assert.equal(grabbed, 4);
     assert.equal(after, before + 4);
   });
@@ -420,10 +370,6 @@ describe('runAutoGrab — règles auto-grab', () => {
     const before = (await qbitRequest('get', '/torrents/info')).length;
     const grabbed = await grab.runAutoGrab('test');
     const after = (await qbitRequest('get', '/torrents/info')).length;
-
-    // C411 : [0] 4.5GB/3L ✗taille, [1] 3.2GB/14L ✗taille, [2] 0.55GB/5L ✓, [3] 15GB/35L ✗taille, [4] 2.1GB/7L ✓
-    // size≤3GB ET leechers≥5 : [2] et [4] → 2 candidats
-    // canGrab=2 → 2 grabés
     assert.equal(grabbed, 2);
     assert.equal(after, before + 2);
   });
@@ -435,10 +381,10 @@ describe('Cycle complet — clean + grab avec règles', () => {
 
   beforeEach(async () => {
     await resetMock();
-    writeJson(EXCLUDED_PATH, {});
-    writeJson(UPLOAD_HISTORY_PATH, {});
-    writeJson(TOP_CACHE_PATH, { items: [], date: '' });
-    writeJson(NAME_MAP_PATH, {});
+    writeJson(path.join(tmpDir, 'logs', 'excluded.json'), {});
+    writeJson(path.join(tmpDir, 'logs', 'upload-history.json'), {});
+    writeJson(path.join(tmpDir, 'logs', 'top-cache.json'), { items: [], date: '' });
+    writeJson(path.join(tmpDir, 'logs', 'namemap.json'), {});
     const grab = require('../lib/grab');
     grab.resetStatus();
   });
@@ -463,17 +409,21 @@ describe('Cycle complet — clean + grab avec règles', () => {
     writeCfg(cfg);
 
     const cleaner = require('../lib/cleaner');
+    cleaner.init({
+      cfgPath:  path.join(tmpDir, 'config.json'),
+      connPath: path.join(tmpDir, 'config.json'),
+      logDir:   path.join(tmpDir, 'logs'),
+    });
     cleaner.initQbit(qbitRequest);
     const deleted = await cleaner.runClean('test');
-
-    // ratio≥2.0 ET âge≥1h : torrent[0] (2.5, 10j) ✓, torrent[1] (0, 5h) ✗, torrent[2] (1.8, 3j) ✗
     assert.equal(deleted, 1);
 
     const grab = require('../lib/grab');
     const maps = { nameMap: {}, categoryMap: {} };
+    const logDir = path.join(tmpDir, 'logs');
     const fns = {
-      getTopCache: () => JSON.parse(fs.readFileSync(TOP_CACHE_PATH)),
-      setTopCache: (c) => writeJson(TOP_CACHE_PATH, c),
+      getTopCache: () => JSON.parse(fs.readFileSync(path.join(logDir, 'top-cache.json'))),
+      setTopCache: (c) => writeJson(path.join(logDir, 'top-cache.json'), c),
       saveCfg: () => writeCfg(readCfg()),
       saveNameMap: () => {},
       saveCategoryMap: () => {},
@@ -483,13 +433,11 @@ describe('Cycle complet — clean + grab avec règles', () => {
       getUltraccInfo,
       isCleanRunning: () => false,
     };
-    grab.init(cfg, maps, fns, TOP_CACHE_PATH);
+    grab.init(cfg, maps, fns, path.join(logDir, 'top-cache.json'), logDir);
 
     const before = (await qbitRequest('get', '/torrents/info')).length;
     const grabbed = await grab.runAutoGrab('test');
     const after = (await qbitRequest('get', '/torrents/info')).length;
-
-    // Après clean : 2 torrents restants. C411 a 5, aucun ne matche les hashes restants → 5 nouveaux
     assert.equal(grabbed, 5);
     assert.equal(after, before + 5);
   });
