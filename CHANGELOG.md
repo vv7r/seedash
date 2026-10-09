@@ -9,17 +9,17 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ## [Non publié]
 
-### Modifié
-- `tests/auto-rules.test.js` : isolation via temp dirs (`os.tmpdir()`) — le test n'écrit plus dans le `config.json` ni les `logs/*.json` réels
-- `lib/cleaner.js` : `init(options)` accepte `cfgPath`, `connPath`, `logDir` — chemins injectables pour les tests
-- `lib/grab.js` : `init()` accepte un 5e paramètre `logDir` — chemin de log injectable
-
 ---
 
 ## [1.7.10] - 2026-10-09
 
 ### Sécurité
 - `package-lock.json` : `proxy-addr` 2.0.7 → 2.0.8 (CVE-2026-90711, IP spoofing via IPv4-mapped IPv6 trust subnet)
+
+### Modifié
+- `tests/auto-rules.test.js` : isolation via temp dirs (`os.tmpdir()`) — le test n'écrit plus dans le `config.json` ni les `logs/*.json` réels
+- `lib/cleaner.js` : `init(options)` accepte `cfgPath`, `connPath`, `logDir` — chemins injectables pour les tests
+- `lib/grab.js` : `init()` accepte un 5e paramètre `logDir` — chemin de log injectable
 
 ---
 
