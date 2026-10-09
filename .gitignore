@@ -2,6 +2,7 @@ node_modules/
 logs/
 *.log
 .claude/
+.playwright-cli/
 connections.json
 .env
 .env.local

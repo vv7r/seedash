@@ -11,6 +11,23 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.9] - 2026-10-09
+
+### Sécurité
+- `server.js` : `POST /api/grab` — ajout `isSafeUrl()` avant la comparaison de hostname (alerte CodeQL #49 SSRF) — bloque `file://`, `ftp://`, adresses loopback, cloud metadata et autres schémas non HTTP(S)
+
+### Ajouté
+- `tests/auto-rules.test.js` — 36 tests sur `filterCandidates` et `checkGrabConditions` (règles auto-grab : filtres, tri, limites, conditions)
+- `tests/mock-api.js` — serveur mock autonome (spawn/kill via `child_process`) pour les tests intégration
+- `lib/grab.js` : `resetStatus()` exporté pour les tests
+
+### Modifié
+- `tests/auto-rules.test.js` : mock auto-contenu (spawn en `before()`, kill en `after()`) — plus de serveur manuel requis
+- `.gitignore` : ajout `.playwright-cli/`
+- `README.md` : compteur de tests 116 → 132, section `auto-rules.test.js` ajoutée, arborescence mise à jour
+
+---
+
 ## [1.7.8] - 2026-10-04
 
 ### Sécurité
@@ -365,7 +382,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.8...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.9...HEAD
+[1.7.9]: https://github.com/vv7r/seedash/compare/v1.7.8...v1.7.9
 [1.7.8]: https://github.com/vv7r/seedash/compare/v1.7.7...v1.7.8
 [1.7.7]: https://github.com/vv7r/seedash/compare/v1.7.6...v1.7.7
 [1.7.6]: https://github.com/vv7r/seedash/compare/v1.7.5...v1.7.6

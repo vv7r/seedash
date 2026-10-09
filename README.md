@@ -71,7 +71,7 @@ Une fois le script terminé, ouvrez l'URL publique affichée dans le terminal po
 ### Commandes utiles
 
 ```bash
-npm test               # tests unitaires (116 tests, runner natif node:test)
+npm test               # tests unitaires + intégration (132 tests, runner natif node:test)
 pm2 reload seedash     # rechargement gracieux après modification du code
 pm2 logs seedash       # logs en temps réel
 pm2 flush seedash      # vider les logs
@@ -207,6 +207,15 @@ Teste `isSafeUrl(url)` et `checkUploadCondition(points, windowHours, thresholdMb
 Ce que les tests vérifient :
 - `isSafeUrl` rejette les URLs privées (10.x, 172.16-31.x, 192.168.x, 169.254.x, 127.0.0.0/8 sauf 127.0.0.1) et les URLs non-http
 - `checkUploadCondition` : fenêtre stricte (couverture complète), ≥ 2 points, delta ≥ seuil
+
+### `tests/auto-rules.test.js` — 16 tests
+
+Tests d'intégration : `runClean()` et `runAutoGrab()` contre des mocks qBittorrent/C411/Ultra.cc (`tests/mock-api.js`, démarré automatiquement par le test).
+
+Ce que les tests vérifient :
+- `runClean` : chaque règle active/désactivée, ET/OU, excluded.json, upload_min_mb
+- `runAutoGrab` : filtres taille/leechers/seeders, active_max, network_max_pct, canGrab
+- Cycle complet : clean puis grab dans le même run
 
 ---
 
@@ -468,7 +477,11 @@ seedash/
 │   └── app.js             — globals partagés, auth, tabs, event listeners, init
 ├── tests/
 │   ├── cleaner-logic.test.js — 27 tests shouldDelete (toutes branches logiques)
-│   └── grab-logic.test.js    — 36 tests filterCandidates (filtres, tri, limites)
+│   ├── grab-logic.test.js    — 36 tests filterCandidates (filtres, tri, limites)
+│   ├── helpers-logic.test.js — 7 tests isSafeUrl + checkUploadCondition
+│   ├── crypto-auth.test.js   — tests crypto + auth
+│   ├── auto-rules.test.js    — 16 tests intégration (runClean + runAutoGrab)
+│   └── mock-api.js           — mocks qBittorrent/C411/Ultra.cc (auto-démarré)
 └── logs/                  — créé automatiquement au démarrage
     ├── history.json        — historique grabs/suppressions (500 entrées max)
     ├── top-cache.json      — cache du dernier top leechers C411

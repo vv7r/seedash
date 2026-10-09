@@ -520,6 +520,7 @@ app.post(`${cfg.baseurl}/api/grab`, auth.requireAuth, async (req, res) => {
   const page_url = (typeof rawPageUrl === 'string' && /^https?:\/\//i.test(rawPageUrl)) ? rawPageUrl : '';
   if (!url) return res.status(400).json({ error: 'url requis' });
   try {
+    if (!isSafeUrl(url)) return res.status(400).json({ error: 'URL non autorisée' });
     const allowed = new URL(cfg.c411.url).hostname;
     const target  = new URL(url).hostname;
     if (target !== allowed) return res.status(400).json({ error: 'URL non autorisée' });
