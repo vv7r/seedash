@@ -1,7 +1,7 @@
 # SeeDash
 
 > [!WARNING]
-> Cette application a été développée intégralement avec **Claude Code** (IA générative).
+> Cette application a été développée intégralement avec **Claude Opus** et **Qwen3.8**.
 > Elle peut contenir des **bugs** et des **failles de sécurité** non détectés.
 > Ne l'exposez pas sur Internet sans audit préalable et utilisez-la à vos propres risques.
 
