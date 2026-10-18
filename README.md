@@ -1,7 +1,7 @@
 # SeeDash
 
 > [!WARNING]
-> Cette application a été développée intégralement avec **Claude Opus** et **Qwen3.8**.
+> Cette application a été développée intégralement avec **Claude Opus**, **DeepSeek** et **Qwen3.8**.
 > Elle peut contenir des **bugs** et des **failles de sécurité** non détectés.
 > Ne l'exposez pas sur Internet sans audit préalable et utilisez-la à vos propres risques.
 
@@ -78,6 +78,19 @@ pm2 flush seedash      # vider les logs
 pm2 stop seedash       # arrêt
 pm2 delete seedash     # suppression du processus PM2
 ```
+
+### Watchdog (auto-restart)
+
+Un script `watchdog.sh` est installé automatiquement par `install.sh` et s'exécute toutes les 5 minutes via cron. Il surveille :
+
+- **PM2** : si le démon est mort, relance seedash + ultra-api
+- **seedash** : requête HTTP `/api/stats` — si le serveur ne répond pas, `pm2 restart`
+- **ultra-api** : lecture de l'URL et du token depuis `connections.json` — si l'API ne répond pas, `pm2 restart`
+
+Le script inclut :
+- Un lock `flock` pour éviter les exécutions concurrentes
+- Une rotation automatique du log (garde les 200 dernières lignes si >50 Ko)
+- Une détection dynamique de `node` et `pm2` via NVM
 
 ---
 

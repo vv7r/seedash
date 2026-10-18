@@ -230,6 +230,26 @@ echo "{\"qbit_url\":\"$QBIT_URL\",\"qbit_user\":\"$QBIT_USER\",\"uc_url\":\"$UC_
 
 pm2 reload seedash --silent
 
+# ─── 9b. Watchdog (cron toutes les 5 min) ─────────────────────────────────────
+sep "Installation du watchdog"
+WATCHDOG_SRC="$SCRIPT_DIR/watchdog.sh"
+WATCHDOG_DST="$HOME/seedash/watchdog.sh"
+if [ -f "$WATCHDOG_SRC" ]; then
+  cp "$WATCHDOG_SRC" "$WATCHDOG_DST"
+  chmod +x "$WATCHDOG_DST"
+  # Supprime l'ancien @reboot nohup s'il existe
+  crontab -l 2>/dev/null | grep -v 'ultra-api.*nohup\|nohup.*python.*stats_request' | crontab -
+  # Ajoute le cron watchdog s'il n'existe pas déjà
+  if ! crontab -l 2>/dev/null | grep -q 'watchdog.sh'; then
+    (crontab -l 2>/dev/null; echo "*/5 * * * * $WATCHDOG_DST >> $HOME/seedash/logs/watchdog.log 2>&1") | crontab -
+    ok "Watchdog installé (cron toutes les 5 min)"
+  else
+    ok "Watchdog déjà dans le crontab"
+  fi
+else
+  warn "watchdog.sh introuvable dans $SCRIPT_DIR — ignorez ou créez-le manuellement"
+fi
+
 # ─── 10. Proxy Nginx ─────────────────────────────────────────────────────────
 sep "Configuration du proxy Nginx"
 NGINX_PROXY_DIR="$HOME/.apps/nginx/proxy.d"
