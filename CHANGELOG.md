@@ -11,6 +11,13 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.12] - 2026-10-23
+
+### Sécurité
+- `package-lock.json` : `follow-redirects` 1.16.0 → 1.16.1 (GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c — exposition d'en-têtes de credentials sur redirections cross-origin)
+
+---
+
 ## [1.7.11] - 2026-10-18
 
 ### Ajouté
@@ -405,7 +412,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.11...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.12...HEAD
+[1.7.12]: https://github.com/vv7r/seedash/compare/v1.7.11...v1.7.12
 [1.7.11]: https://github.com/vv7r/seedash/compare/v1.7.10...v1.7.11
 [1.7.10]: https://github.com/vv7r/seedash/compare/v1.7.9...v1.7.10
 [1.7.9]: https://github.com/vv7r/seedash/compare/v1.7.8...v1.7.9
