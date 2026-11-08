@@ -11,6 +11,15 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.7.13] - 2026-11-08
+
+### Sécurité
+- `package-lock.json` : `follow-redirects` 1.16.1 → 1.16.3 (GHSA-mrwp-f3q8-3g9p — tableaux `sensitiveHeaders` cross-realm ignorés, credentials personnalisés suivis sur redirection)
+- `package-lock.json` : `body-parser` 1.20.8 → 1.20.9 (GHSA-27r3-jxmh-p828 — déni de service via octets finaux après un corps compressé)
+- `package-lock.json` : `qs` 6.16.0 → 6.17.1 (GHSA-6pq8-jhm2-2vcw — `qs.stringify` avec `arrayFormat: 'comma'` lève une `TypeError` non interceptée)
+
+---
+
 ## [1.7.12] - 2026-10-23
 
 ### Sécurité
@@ -412,7 +421,8 @@ versionnement selon [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
-[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.12...HEAD
+[Non publié]: https://github.com/vv7r/seedash/compare/v1.7.13...HEAD
+[1.7.13]: https://github.com/vv7r/seedash/compare/v1.7.12...v1.7.13
 [1.7.12]: https://github.com/vv7r/seedash/compare/v1.7.11...v1.7.12
 [1.7.11]: https://github.com/vv7r/seedash/compare/v1.7.10...v1.7.11
 [1.7.10]: https://github.com/vv7r/seedash/compare/v1.7.9...v1.7.10
